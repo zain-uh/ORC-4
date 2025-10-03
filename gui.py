@@ -3,10 +3,10 @@ from pathlib import Path
 # from tkinter import *
 # Explicit imports to satisfy Flake8
 from tkinter import Tk, Canvas, Entry, Text, Button, PhotoImage
-
+import youtube
 
 OUTPUT_PATH = Path(__file__).parent
-ASSETS_PATH = OUTPUT_PATH / Path(r"C:\Users\daran\Desktop\TEMP\build\assets\frame0")
+ASSETS_PATH = OUTPUT_PATH / Path(r"assets\frame0")
 
 
 def relative_to_assets(path: str) -> Path:
@@ -18,6 +18,8 @@ window = Tk()
 window.geometry("960x540")
 window.configure(bg = "#FFFFFF")
 
+def open_youtube():
+    youtube.start(window)
 
 canvas = Canvas(
     window,
@@ -28,6 +30,7 @@ canvas = Canvas(
     highlightthickness = 0,
     relief = "ridge"
 )
+
 
 canvas.place(x = 0, y = 0)
 image_image_1 = PhotoImage(
