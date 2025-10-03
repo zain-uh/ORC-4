@@ -34,6 +34,7 @@ def move_images(event):
         # move images left to show next page
         smooth_move([image_1, image_2], -STEP_SIZE, 480)
         current_index += 1
+        print(current_index)   # Debug print
 
     elif event.keysym == 'Left':
         if current_index <= MIN_INDEX:
@@ -41,14 +42,21 @@ def move_images(event):
         # move images right to show previous page
         smooth_move([image_1, image_2], STEP_SIZE, 480)
         current_index -= 1
+        print(current_index)   # Debug print
+
 
 window = Tk()
 
 window.geometry("960x540")
 window.configure(bg = "#FFFFFF")
 
-def open_youtube():
-    youtube.start(window)
+def open_method(event=None):
+    if current_index == 0:
+        youtube.start(window)
+
+    # elif current_index == 1:
+        # open files
+        
 
 canvas = Canvas(
     window,
@@ -89,6 +97,9 @@ canvas.create_text(
 
 window.bind('<Left>', move_images)
 window.bind('<Right>', move_images)
+
+
+window.bind('<Return>', open_method) # Use <Return> for Enter key ti
 
 window.resizable(False, False)
 window.mainloop()

@@ -25,8 +25,17 @@ def start(root):
 
     search_btn = tk.Button(frame, text="Search", command=do_search)
     search_btn.pack(pady=5)
+    
+    
+    def go_back(event=None):
+        root.destroy()  # Or, better: call a callback to restore the main GUI
 
-    # Back button to return to gui
-    from gui import open_youtube  # careful with circular imports
-    back_btn = tk.Button(frame, text="Back", command=lambda: root.quit())  # placeholder
+    back_btn = tk.Button(frame, text="Back", command=go_back)
     back_btn.pack(pady=20)
+
+    frame.bind_all('<Down>', go_back)  # Bind Down arrow to go_back
+
+    # # Back button to return to gui
+    # from gui import open_youtube  # careful with circular imports
+    # back_btn = tk.Button(frame, text="Back", command=lambda: root.quit())  # placeholder
+    # back_btn.pack(pady=20)
