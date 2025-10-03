@@ -1,0 +1,3 @@
+download that font thats totally not a virus
+run "python gui.py"
+Done
