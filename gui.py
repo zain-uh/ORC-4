@@ -12,6 +12,35 @@ ASSETS_PATH = OUTPUT_PATH / Path(r"assets\frame0")
 def relative_to_assets(path: str) -> Path:
     return ASSETS_PATH / Path(path)
 
+#SMOOTH SCROLLIN LINE 15-41!!! ALSO LINE 88/89
+STEP_SIZE = 10     # pixels per small step
+STEP_DELAY = 2     # milliseconds between steps
+def smooth_move(image_ids, dx, steps_left):
+    if steps_left <= 0:
+        return
+    for img in image_ids:
+        canvas.move(img, dx, 0)
+    canvas.after(STEP_DELAY, smooth_move, image_ids, dx, steps_left - abs(dx))
+
+MAX_INDEX = 1
+MIN_INDEX = 0
+current_index = 0
+def move_images(event):
+    global current_index
+    
+    if event.keysym == 'Right':
+        if current_index >= MAX_INDEX:
+            return  # at last index, can't go further
+        # move images left to show next page
+        smooth_move([image_1, image_2], -STEP_SIZE, 480)
+        current_index += 1
+
+    elif event.keysym == 'Left':
+        if current_index <= MIN_INDEX:
+            return  # at start, can't go back
+        # move images right to show previous page
+        smooth_move([image_1, image_2], STEP_SIZE, 480)
+        current_index -= 1
 
 window = Tk()
 
@@ -57,5 +86,9 @@ canvas.create_text(
     fill="#282828",
     font=("IBM Plex Mono SemiBold", 32 * -1)
 )
+
+window.bind('<Left>', move_images)
+window.bind('<Right>', move_images)
+
 window.resizable(False, False)
 window.mainloop()
