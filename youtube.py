@@ -1,4 +1,5 @@
 import tkinter as tk
+import yt_dlp
 
 def start(root):
     # Clear existing UI
@@ -18,10 +19,36 @@ def start(root):
     search_entry = tk.Entry(frame, textvariable=search_var, font=("Arial", 14), width=30)
     search_entry.pack(pady=5)
 
+
+    # Output label for now (we’ll make a proper results list later)
+    results_label = tk.Label(frame, text="", bg="white", justify="left", anchor="w")
+    results_label.pack(pady=10)
     # Search button
     def do_search():
         query = search_var.get()
-        print("Searching YouTube for:", query)  # placeholder
+        if not query:
+            results_label.config(text="Please enter a search query.")
+            return
+        results_label.config(text="Searching...")
+        # Use yt_dlp to search YouTube
+        ydl_opts = {
+            'quiet': True,
+            'extract_flat': 'in_playlist',
+            'default_search': 'ytsearch5',  # get top 5 results CAN CHANGE
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            search_results = ydl.extract_info(query, download=False)
+
+        # Build a readable list
+        if 'entries' in search_results:
+            results_text = ""
+            for idx, entry in enumerate(search_results['entries'], 1):
+                title = entry.get('title', 'Unknown Title')
+                url = entry.get('url', '')
+                results_text += f"{idx}. {title}\nhttps://www.youtube.com/watch?v={url}\n\n"
+            results_label.config(text=results_text)
+        else:
+            results_label.config(text="No results found.")
 
     search_btn = tk.Button(frame, text="Search", command=do_search)
     search_btn.pack(pady=5)
@@ -29,7 +56,7 @@ def start(root):
     
     def go_back(event=None):
         root.destroy()  # Or, better: call a callback to restore the main GUI
-
+        # NOT GOOD CHANGE SOON
     back_btn = tk.Button(frame, text="Back", command=go_back)
     back_btn.pack(pady=20)
 
