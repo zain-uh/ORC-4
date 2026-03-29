@@ -1,0 +1,17 @@
+[Unit]
+Description=ORC-4 Tkinter App
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__PROJECT_DIR__
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=__HOME_DIR__/.Xauthority
+ExecStart=__PROJECT_DIR__/.venv/bin/python __PROJECT_DIR__/home.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target

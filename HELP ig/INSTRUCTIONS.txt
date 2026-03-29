@@ -1,3 +1,28 @@
-download that font thats totally not a virus
-run "python gui.py"
-Done
+Raspberry Pi Zero 2 W setup (Raspberry Pi OS):
+
+1) Install system packages:
+sudo apt update
+sudo apt install -y python3 python3-venv python3-pip python3-tk
+
+2) From the project folder, create and activate a virtual environment:
+python3 -m venv .venv
+source .venv/bin/activate
+
+3) Install Python dependencies:
+pip install -r requirements.txt
+
+4) Run the app:
+python3 home.py
+
+5) Optional: autostart on boot with systemd:
+# from the project folder
+chmod +x install_service.sh
+./install_service.sh
+
+# check status/logs
+systemctl status orc4.service
+journalctl -u orc4.service -f
+
+Note:
+- install_service.sh auto-detects your user and project path.
+- orc4.service is a template and is filled in during install.

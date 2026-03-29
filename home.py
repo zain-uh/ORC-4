@@ -3,7 +3,7 @@ from tkinter import Tk, Canvas, PhotoImage
 import youtube
 
 OUTPUT_PATH = Path(__file__).parent
-ASSETS_PATH = OUTPUT_PATH / Path(r"assets\frame0")
+ASSETS_PATH = OUTPUT_PATH / "assets" / "frame0"
 
 def relative_to_assets(path: str) -> Path:
     return ASSETS_PATH / Path(path)
@@ -52,7 +52,7 @@ def home_gui(root):
         anchor="nw",
         text="100%",
         fill="#282828",
-        font=("IBM Plex Mono SemiBold", 32 * -1)
+        font=("IBM Plex Mono SemiBold", -40),
     )
 
     # --- Smooth scrolling animation ---
