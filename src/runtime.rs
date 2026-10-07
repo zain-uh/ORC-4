@@ -13,6 +13,7 @@ use crate::input::remote::server;
 use crate::platform::Display;
 use crate::screens::launcher::Launcher;
 use crate::screens::nav::{Cx, Navigator};
+use crate::services::player::PlayerEvent;
 use crate::services::{ServiceEvent, Services, clock};
 use crate::ui::DrawCx;
 use crate::ui::canvas::Canvas;
@@ -29,6 +30,7 @@ enum Step {
     Text(TextEdit),
     Notice(Notice),
     Service(ServiceEvent),
+    Player(PlayerEvent),
 }
 
 /// Runs until shutdown. The UI thread sleeps whenever nothing changes: it
@@ -64,6 +66,9 @@ pub fn run(
     let mut canvas = Canvas::new();
     let mut dirty = true;
     let mut first_frame = true;
+    // Video owns the display (device only; the simulator plays in a window).
+    let mut video_mode = false;
+    let mut handed_over = false;
 
     loop {
         display.pump(tx)?;
@@ -102,6 +107,7 @@ pub fn run(
                 }
                 Event::Text(edit) => vec![Step::Text(edit)],
                 Event::Service(result) => vec![Step::Service(result)],
+                Event::Player(event) => vec![Step::Player(event)],
                 // Phone traffic becomes the same steps a keyboard produces.
                 Event::Remote(remote) => {
                     let outputs = link.handle(remote, &mut settings, now);
@@ -131,6 +137,7 @@ pub fn run(
                     Step::Text(edit) => screens.text(&edit, &mut cx),
                     Step::Notice(notice) => screens.notify(&notice, &mut cx),
                     Step::Service(result) => screens.dispatch(result, &mut cx),
+                    Step::Player(event) => screens.player(&event, &mut cx),
                 };
             }
             if cx.exit_requested() {
@@ -162,7 +169,19 @@ pub fn run(
         }
         dirty |= screens.animate(now);
 
-        if dirty {
+        let want_video = screens.takes_display();
+        if want_video != video_mode {
+            video_mode = want_video;
+            if want_video {
+                handed_over = display.release_for_video()?;
+            } else if handed_over {
+                display.reclaim()?;
+                handed_over = false;
+                dirty = true;
+            }
+        }
+
+        if dirty && !handed_over {
             let theme = Theme::with_edges(settings.display.edge_x, settings.display.edge_y);
             let cx = DrawCx {
                 theme: &theme,

@@ -6,6 +6,7 @@ pub mod image_viewer;
 pub mod launcher;
 pub mod nav;
 pub mod placeholder;
+pub mod player;
 pub mod registry;
 pub mod settings;
 pub mod text_entry;

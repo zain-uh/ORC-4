@@ -1,6 +1,7 @@
 use crate::app::action::{InputEvent, TextEdit};
 use crate::input::remote::server::RemoteEvent;
 use crate::services::ServiceEvent;
+use crate::services::player::PlayerEvent;
 
 /// Everything that can wake the UI thread. All producers (input sources,
 /// phone connections, the background worker) hold a clone of the same
@@ -12,6 +13,7 @@ pub enum Event {
     Text(TextEdit),
     Remote(RemoteEvent),
     Service(ServiceEvent),
+    Player(PlayerEvent),
     /// Stop the main loop cleanly (window closed, power off requested).
     Shutdown,
 }

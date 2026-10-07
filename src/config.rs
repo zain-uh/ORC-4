@@ -28,6 +28,7 @@ pub struct Settings {
     pub input: InputSettings,
     pub phone: PhoneSettings,
     pub youtube: YoutubeSettings,
+    pub player: PlayerSettings,
     pub simulator: SimulatorSettings,
 }
 
@@ -41,6 +42,7 @@ impl Default for Settings {
             input: InputSettings::default(),
             phone: PhoneSettings::default(),
             youtube: YoutubeSettings::default(),
+            player: PlayerSettings::default(),
             simulator: SimulatorSettings::default(),
         }
     }
@@ -84,6 +86,41 @@ impl Default for DisplaySettings {
 pub enum TvNorm {
     Pal,
     Ntsc,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PlayerSettings {
+    /// The mpv program: a name on PATH or a full path.
+    pub mpv: String,
+    /// yt-dlp format choice. Default: H.264 at 480p or less (the Pi Zero
+    /// decodes H.264 in hardware; the display is 540 lines tall anyway).
+    pub format: String,
+    /// Extra mpv options for this device (video output, decoding).
+    pub extra_args: Vec<String>,
+    /// Last volume, 0–100.
+    pub volume: u32,
+}
+
+impl Default for PlayerSettings {
+    fn default() -> Self {
+        let extra: &[&str] = if cfg!(feature = "simulator") {
+            &[
+                "--force-window=immediate",
+                "--geometry=960x540",
+                "--title=ORC-4 video",
+            ]
+        } else {
+            &["--vo=gpu", "--gpu-context=drm", "--hwdec=v4l2m2m-copy"]
+        };
+        Self {
+            mpv: "mpv".into(),
+            format: "bv*[vcodec^=avc1][height<=480]+ba[ext=m4a]/b[vcodec^=avc1][height<=480]/b[height<=480]/b"
+                .into(),
+            extra_args: extra.iter().map(|s| s.to_string()).collect(),
+            volume: 70,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

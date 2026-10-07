@@ -11,6 +11,7 @@
 
 pub mod clock;
 pub mod http;
+pub mod player;
 pub mod storage;
 pub mod system;
 pub mod youtube;
@@ -22,6 +23,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::event::Event;
+use player::{PlayOptions, Player};
 use storage::{DirEntry, Image};
 use youtube::Video;
 
@@ -48,8 +50,10 @@ pub enum UserError {
     Unsupported,
     Storage,
     Network,
-    /// A helper program (yt-dlp) isn't installed.
+    /// A helper program (yt-dlp, mpv) isn't installed.
     MissingTool,
+    /// The player couldn't play the file or stream.
+    Playback,
     Internal,
 }
 
@@ -62,7 +66,8 @@ impl UserError {
             Self::Unsupported => "Can't open this type of file",
             Self::Storage => "Storage error",
             Self::Network => "Can't reach the internet",
-            Self::MissingTool => "YouTube support (yt-dlp) isn't installed",
+            Self::MissingTool => "Video support isn't installed",
+            Self::Playback => "Couldn't play this",
             Self::Internal => "Something went wrong",
         }
     }
@@ -83,6 +88,7 @@ type Queue = Sender<(Ticket, Job)>;
 pub struct Services {
     disk: Queue,
     net: Queue,
+    events: Sender<Event>,
     next: Cell<u64>,
 }
 
@@ -90,7 +96,8 @@ impl Services {
     pub fn start(events: Sender<Event>) -> Self {
         Self {
             disk: spawn_pool("worker", 1, events.clone()),
-            net: spawn_pool("net", NETWORK_THREADS, events),
+            net: spawn_pool("net", NETWORK_THREADS, events.clone()),
+            events,
             next: Cell::new(1),
         }
     }
@@ -103,6 +110,12 @@ impl Services {
     /// Network work (searches, downloads). Several run at once.
     pub fn run_net(&self, job: impl FnOnce() -> JobResult + Send + 'static) -> Ticket {
         self.queue(&self.net, Box::new(job))
+    }
+
+    /// Starts playing `target` (a URL or file path). Progress arrives as
+    /// `Event::Player`; dropping the returned handle stops playback.
+    pub fn play(&self, target: String, opts: PlayOptions) -> Player {
+        player::start(target, opts, self.events.clone())
     }
 
     fn queue(&self, queue: &Queue, job: Job) -> Ticket {

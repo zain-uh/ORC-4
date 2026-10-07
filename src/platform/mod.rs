@@ -26,6 +26,19 @@ pub trait Display {
     fn needs_polling(&self) -> bool {
         false
     }
+
+    /// Hands the physical display to the video player (mpv draws to it
+    /// directly). Returns true if it was handed over, in which case the UI
+    /// must not present until `reclaim`. Backends where video plays in its
+    /// own window (the simulator) keep the UI and return false.
+    fn release_for_video(&mut self) -> anyhow::Result<bool> {
+        Ok(false)
+    }
+
+    /// Takes the display back after video; the next frame repaints it.
+    fn reclaim(&mut self) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 pub fn open(settings: &Settings) -> anyhow::Result<Box<dyn Display>> {

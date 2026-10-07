@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use crate::app::action::{Action, Notice, TextEdit, TextRequest};
 use crate::config::{Paths, Settings};
 use crate::input::remote::link::PhoneLink;
+use crate::services::player::PlayerEvent;
 use crate::services::{ServiceEvent, Services};
 use crate::ui::DrawCx;
 use crate::ui::canvas::{Canvas, HEIGHT, WIDTH, rgba};
@@ -91,6 +92,17 @@ pub trait Screen {
     /// Something happened elsewhere (a phone connected...). Ignored by default.
     fn on_notice(&mut self, _notice: &Notice, _cx: &mut Cx) -> Nav {
         Nav::Unhandled
+    }
+
+    /// Playback progress and end (only the top screen receives these).
+    fn on_player(&mut self, _event: &PlayerEvent, _cx: &mut Cx) -> Nav {
+        Nav::Unhandled
+    }
+
+    /// True while this screen shows video that needs the whole display (the
+    /// device hands the screen to the video player).
+    fn takes_display(&self) -> bool {
+        false
     }
 
     /// `Some` while this screen has a text field focused, so the phone can
@@ -204,6 +216,18 @@ impl Navigator {
         }
         let redraw = self.apply(nav, cx);
         self.take_toast(cx) || redraw
+    }
+
+    /// Routes playback events to the top screen.
+    pub fn player(&mut self, event: &PlayerEvent, cx: &mut Cx) -> bool {
+        let nav = self.top_mut().on_player(event, cx);
+        let redraw = self.apply(nav, cx);
+        self.take_toast(cx) || redraw
+    }
+
+    /// Whether video should own the display right now (never mid-transition).
+    pub fn takes_display(&self) -> bool {
+        self.transition.is_none() && self.top().takes_display()
     }
 
     /// The top screen's text request.

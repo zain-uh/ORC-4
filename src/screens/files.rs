@@ -21,6 +21,7 @@ use crate::ui::widgets::{hint, message, status_bar};
 use super::confirm::Confirm;
 use super::image_viewer::ImageViewer;
 use super::nav::{Cx, Nav, Screen};
+use super::player::{Media, PlayerScreen};
 use super::text_viewer::TextViewer;
 
 enum Load {
@@ -78,6 +79,14 @@ impl Folder {
             }
             FileKind::Text => Nav::Push(Box::new(TextViewer::open_file(path, name, cx))),
             FileKind::Image => Nav::Push(Box::new(ImageViewer::open(path, name, cx))),
+            FileKind::Media => {
+                let media = Media {
+                    title: name,
+                    subtitle: None,
+                    target: path.to_string_lossy().into_owned(),
+                };
+                Nav::Push(Box::new(PlayerScreen::open(media, cx)))
+            }
             FileKind::Other => {
                 cx.toast(UserError::Unsupported.message());
                 Nav::Stay
@@ -166,6 +175,7 @@ impl Screen for Folder {
                     icon: Some(match storage::kind(e) {
                         FileKind::Folder => Icon::Folder,
                         FileKind::Image => Icon::Picture,
+                        FileKind::Media => Icon::Play,
                         _ => Icon::Document,
                     }),
                     label: &e.name,

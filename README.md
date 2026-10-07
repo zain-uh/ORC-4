@@ -36,9 +36,27 @@ winget install yt-dlp.yt-dlp
 ```
 
 Then open a new terminal so it is on PATH. Without it, the YouTube app shows
-"YouTube support (yt-dlp) isn't installed" and everything else keeps working.
+"Video support isn't installed" and everything else keeps working.
 Thumbnails download with Windows' built-in `curl.exe` on the dev PC (the
 device uses a Rust HTTPS client).
+
+Playback (YouTube results and media files in Files) uses [mpv](https://mpv.io):
+
+```bash
+winget install shinchiro.mpv
+```
+
+Its installer doesn't add mpv to PATH, so point ORC-4 at it in
+`dev-data/settings.toml`:
+
+```toml
+[player]
+mpv = 'C:\Program Files\MPV Player\mpv.exe'
+```
+
+In the simulator mpv opens its own window; on the glasses it takes over the
+display. Controls: Enter pause, ←/→ seek 10 s, ↑/↓ volume, Tab audio only,
+Esc stop.
 
 ## Phone link (dev remote)
 

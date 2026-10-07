@@ -5,7 +5,7 @@
 //!
 //! Results load 12 at a time; more are fetched automatically when focus gets
 //! within 4 of the end, de-duplicated *before* thumbnails are requested.
-//! Thumbnails download in parallel on the network pool.
+//! Thumbnails download in parallel on the network pool. Enter plays.
 
 use std::collections::{HashMap, HashSet};
 use std::f32::consts::PI;
@@ -16,6 +16,7 @@ use tiny_skia::{IntSize, Pixmap};
 use crate::app::action::Action;
 use crate::app::anim::{Ease, Tween};
 use crate::screens::nav::{Cx, Nav, Screen};
+use crate::screens::player::{Media, PlayerScreen};
 use crate::services::youtube::{self, MAX_THUMBNAIL_BYTES, Video};
 use crate::services::{Reply, ServiceEvent, Ticket, UserError, http, storage};
 use crate::ui::DrawCx;
@@ -152,7 +153,17 @@ impl Screen for Results {
                 self.load_more(cx);
             }
             Action::Select if !self.videos.is_empty() => {
-                cx.toast("Playback arrives in M7");
+                let v = &self.videos[self.index];
+                let media = Media {
+                    title: fonts().printable(FontId::Sans, &v.title),
+                    subtitle: v
+                        .channel
+                        .as_deref()
+                        .map(|c| fonts().printable(FontId::Sans, c)),
+                    // The id was validated as [A-Za-z0-9_-]{11}, so this URL is safe.
+                    target: format!("https://www.youtube.com/watch?v={}", v.id),
+                };
+                return Nav::Push(Box::new(PlayerScreen::open(media, cx)));
             }
             _ => return Nav::Unhandled,
         }

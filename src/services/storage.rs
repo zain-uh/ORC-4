@@ -33,6 +33,8 @@ pub enum FileKind {
     Folder,
     Text,
     Image,
+    /// Audio or video, played by mpv.
+    Media,
     Other,
 }
 
@@ -47,6 +49,10 @@ pub fn kind(entry: &DirEntry) -> FileKind {
     match ext.as_deref() {
         Some("txt" | "md" | "log" | "csv" | "json" | "toml" | "ini" | "srt") => FileKind::Text,
         Some("png" | "jpg" | "jpeg") => FileKind::Image,
+        Some(
+            "mp4" | "mkv" | "webm" | "mov" | "mp3" | "m4a" | "aac" | "ogg" | "opus" | "flac"
+            | "wav",
+        ) => FileKind::Media,
         _ => FileKind::Other,
     }
 }
