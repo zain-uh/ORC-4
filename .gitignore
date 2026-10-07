@@ -1,0 +1,10 @@
+# Rust
+/target/
+
+# Local dev data written by the simulator (settings, logs)
+/dev-data/
+
+# Python prototype
+__pycache__/
+*.pyc
+.venv/

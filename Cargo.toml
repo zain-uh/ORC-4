@@ -1,0 +1,25 @@
+[package]
+name = "orc4"
+version = "0.1.0"
+edition = "2024"
+description = "ORC-4 smart-glasses operating environment"
+publish = false
+
+[features]
+# The desktop simulator window is the default so `cargo run` works on a dev PC.
+# Device builds use `--no-default-features` plus the KMS backend (milestone M3).
+default = ["simulator"]
+simulator = ["dep:minifb"]
+
+[dependencies]
+anyhow = "1.0.104"
+log = "0.4.34"
+serde = { version = "1.0.229", features = ["derive"] }
+tiny-skia = { version = "0.12.0", default-features = false, features = ["std", "simd"] }
+toml = "1.1.6"
+minifb = { version = "0.29.0", optional = true, default-features = false, features = ["x11"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
