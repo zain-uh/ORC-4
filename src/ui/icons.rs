@@ -14,6 +14,8 @@ pub enum Icon {
     Search,
     Folder,
     Gear,
+    Document,
+    Picture,
 }
 
 /// Draws `icon` centred on (`cx`, `cy`), fitting a `size`×`size` box.
@@ -47,6 +49,38 @@ pub fn draw(c: &mut Canvas, icon: Icon, cx: f32, cy: f32, size: f32, color: Colo
             let r = 0.06 * s;
             c.fill_rounded_rect(cx - 0.42 * s, cy - 0.34 * s, 0.38 * s, 0.2 * s, r, color);
             c.fill_rounded_rect(cx - 0.42 * s, cy - 0.24 * s, 0.84 * s, 0.6 * s, r, color);
+        }
+        Icon::Document => {
+            // Page with the top-right corner folded over.
+            let (l, r, t, b, fold) = (
+                cx - 0.3 * s,
+                cx + 0.3 * s,
+                cy - 0.4 * s,
+                cy + 0.4 * s,
+                0.2 * s,
+            );
+            c.fill_polygon(
+                &[(l, t), (r - fold, t), (r, t + fold), (r, b), (l, b)],
+                color,
+            );
+        }
+        Icon::Picture => {
+            // Frame outline, a sun and two hills.
+            let w = 0.08 * s;
+            let (l, t, fw, fh) = (cx - 0.42 * s, cy - 0.32 * s, 0.84 * s, 0.64 * s);
+            c.stroke_rounded_rect(l, t, fw, fh, 0.08 * s, w, color);
+            c.fill_circle(cx + 0.18 * s, cy - 0.1 * s, 0.08 * s, color);
+            let base = t + fh - w / 2.0;
+            c.fill_polygon(
+                &[
+                    (l + w / 2.0, base),
+                    (cx - 0.12 * s, cy - 0.06 * s),
+                    (cx + 0.1 * s, base - 0.12 * s),
+                    (cx + 0.22 * s, cy + 0.04 * s),
+                    (l + fw - w / 2.0, base),
+                ],
+                color,
+            );
         }
         Icon::Gear => {
             // Thick ring (leaves the centre hole transparent) plus 8 teeth.

@@ -49,7 +49,6 @@ pub fn apply_level(configured: &str) {
 }
 
 /// Most recent log lines, oldest first.
-#[allow(dead_code)] // first caller: Settings → Device → Logs (M4)
 pub fn recent() -> Vec<String> {
     LOGGER
         .get()

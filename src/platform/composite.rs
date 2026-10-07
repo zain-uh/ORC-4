@@ -146,9 +146,9 @@ mod review {
 
     use super::CompositePreview;
     use crate::screens::launcher::Launcher;
+    use crate::screens::nav::Screen;
     use crate::ui::DrawCx;
     use crate::ui::canvas::{Canvas, HEIGHT, WIDTH};
-    use crate::ui::nav::Screen;
     use crate::ui::snapshot::write_png;
     use crate::ui::theme::Theme;
     use crate::ui::widgets::status_bar::Status;

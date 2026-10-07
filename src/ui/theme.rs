@@ -20,6 +20,8 @@ pub mod color {
     pub const TEXT_SECONDARY: u32 = 0xA6A6A6;
     pub const TEXT_DISABLED: u32 = 0x5C5C5C;
     pub const FOCUS: u32 = 0xF2F2F2;
+    /// Destructive actions (Delete, Reset). Fills only.
+    pub const DANGER: u32 = 0xC4302B;
 
     // App accents: large areas only, never text.
     pub const YOUTUBE: u32 = 0xC4302B;
@@ -78,23 +80,39 @@ pub struct Insets {
     pub bottom: f32,
 }
 
-/// Per-device values (calibrated from Settings in M4). Constant tokens live
-/// in the modules above.
+/// Per-device values (calibrated in Settings → Display). Constant tokens
+/// live in the modules above.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Theme {
     pub safe: Insets,
 }
 
-impl Default for Theme {
-    fn default() -> Self {
+impl Theme {
+    /// Symmetric safe area: `edge_x` from left and right, `edge_y` from top
+    /// and bottom.
+    pub fn with_edges(edge_x: f32, edge_y: f32) -> Self {
         Self {
             safe: Insets {
-                left: 56.0,
-                right: 56.0,
-                top: 40.0,
-                bottom: 40.0,
+                left: edge_x,
+                right: edge_x,
+                top: edge_y,
+                bottom: edge_y,
             },
         }
+    }
+
+    /// Area below the status bar inside the safe area: (left, top, width, height).
+    pub fn content(&self) -> (f32, f32, f32, f32) {
+        let top = self.safe.top + space::STATUS_BAR_HEIGHT + space::XS;
+        let width = super::canvas::WIDTH as f32 - self.safe.left - self.safe.right;
+        let height = super::canvas::HEIGHT as f32 - self.safe.bottom - top;
+        (self.safe.left, top, width, height)
+    }
+}
+
+impl Default for Theme {
+    fn default() -> Self {
+        Self::with_edges(56.0, 40.0)
     }
 }
 

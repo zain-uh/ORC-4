@@ -82,27 +82,27 @@ ORC-4/
 ├── Cargo.toml                 single binary crate (a workspace only if a 2nd binary appears)
 ├── src/
 │   ├── main.rs                parse args, load config, pick backends
-│   ├── runtime.rs             main loop: events → screens → display
+│   ├── runtime.rs             main loop: events → screens → display; debounced settings save
+│   ├── event.rs               Event (Input | Service | Shutdown)
 │   ├── app/                   ── pure logic: no I/O, no hardware, unit-testable
 │   │   ├── action.rs          Action, InputEvent
-│   │   ├── event.rs           Event (Input | Service | Tick)
 │   │   └── anim.rs            Tween, easing
 │   ├── ui/                    ── drawing toolkit; knows pixels, not hardware
 │   │   ├── canvas.rs          Canvas = 960×540 Pixmap + helpers
 │   │   ├── text.rs            embedded fonts, glyph cache, wrap/ellipsis
 │   │   ├── theme.rs           colours, type scale, spacing, safe area, motion
 │   │   ├── icons.rs           vector app icons (play, search, folder, gear)
-│   │   ├── nav.rs             Screen trait, Navigator (screen stack); in ui/ because it draws transitions
 │   │   └── widgets/           status_bar, list, grid, card, toast, spinner, osk
 │   ├── screens/               ── the "apps"; each implements Screen
+│   │   ├── nav.rs             Screen trait, Cx (settings/services/toasts), Navigator stack
 │   │   ├── registry.rs        AppEntry list → launcher panels
 │   │   ├── launcher.rs        panel carousel
 │   │   ├── youtube/           search, results grid, player
-│   │   ├── files/             browser, text/image viewers
+│   │   ├── files.rs           folder browser (+ text_viewer.rs, image_viewer.rs, confirm.rs)
 │   │   ├── settings/          sections + detail pages
 │   │   └── search/            Google: query, results, reader
 │   ├── services/              ── background workers; never touch the UI
-│   │   ├── mod.rs             ServiceHub, Request, ServiceEvent, Ticket
+│   │   ├── mod.rs             Services (worker jobs), Ticket, Reply, UserError
 │   │   ├── http.rs            fetch + image decode
 │   │   ├── youtube.rs         yt-dlp helper-process client
 │   │   ├── player.rs          mpv process + JSON IPC

@@ -1,6 +1,6 @@
 use tiny_skia::{
-    Color, ColorU8, FillRule, LineCap, Paint, Path, PathBuilder, Pixmap, PremultipliedColorU8,
-    Rect, Stroke, Transform,
+    Color, ColorU8, FillRule, LineCap, Paint, Path, PathBuilder, Pixmap, PixmapPaint,
+    PremultipliedColorU8, Rect, Stroke, Transform,
 };
 
 use super::text::{Align, Glyph, GlyphCache, TextStyle, fonts};
@@ -40,6 +40,14 @@ impl Canvas {
         }
     }
 
+    /// Rectangle outline drawn as four filled bars, so it stays crisp.
+    pub fn stroke_rect(&mut self, x: f32, y: f32, w: f32, h: f32, width: f32, color: Color) {
+        self.fill_rect(x, y, w, width, color);
+        self.fill_rect(x, y + h - width, w, width, color);
+        self.fill_rect(x, y, width, h, color);
+        self.fill_rect(x + w - width, y, width, h, color);
+    }
+
     pub fn fill_circle(&mut self, cx: f32, cy: f32, r: f32, color: Color) {
         if let Some(path) = PathBuilder::from_circle(cx, cy, r) {
             self.fill_path(&path, color);
@@ -77,6 +85,18 @@ impl Canvas {
         }
     }
 
+    /// Draws a (premultiplied RGBA) image with its top-left at (x, y).
+    pub fn draw_image(&mut self, image: &Pixmap, x: f32, y: f32) {
+        self.pixmap.draw_pixmap(
+            x.round() as i32,
+            y.round() as i32,
+            image.as_ref(),
+            &PixmapPaint::default(),
+            Transform::identity(),
+            None,
+        );
+    }
+
     pub fn fill_rounded_rect(&mut self, x: f32, y: f32, w: f32, h: f32, r: f32, color: Color) {
         if let Some(path) = rounded_rect(x, y, w, h, r) {
             self.fill_path(&path, color);
@@ -84,7 +104,6 @@ impl Canvas {
     }
 
     /// Outline centred on the rectangle's edge.
-    #[allow(dead_code)] // next caller: focus ring on list rows (M4)
     #[allow(clippy::too_many_arguments)]
     pub fn stroke_rounded_rect(
         &mut self,

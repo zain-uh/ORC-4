@@ -7,8 +7,8 @@ mod window;
 
 use std::sync::mpsc::Sender;
 
-use crate::app::event::Event;
 use crate::config::Settings;
+use crate::event::Event;
 use crate::ui::canvas::Canvas;
 
 pub trait Display {

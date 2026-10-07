@@ -200,6 +200,24 @@ impl Fonts {
     }
 }
 
+impl Fonts {
+    /// Wraps a whole document: each source line is wrapped on its own and
+    /// blank lines are kept, so paragraphs stay visible. Can be slow for
+    /// large files; run it on the worker.
+    pub fn wrap_document(&self, style: TextStyle, text: &str, max_width: f32) -> Vec<String> {
+        let mut out = Vec::new();
+        for line in text.lines() {
+            let line = line.replace('\t', "    ");
+            if line.trim().is_empty() {
+                out.push(String::new());
+            } else {
+                out.extend(self.wrap(style, &line, max_width, usize::MAX));
+            }
+        }
+        out
+    }
+}
+
 /// A rasterised glyph: coverage bitmap plus placement metrics.
 pub struct Glyph {
     pub metrics: Metrics,

@@ -24,6 +24,7 @@ pub struct Settings {
     /// error | warn | info | debug | trace. `ORC4_LOG` overrides it.
     pub log_level: String,
     pub clock: ClockSettings,
+    pub display: DisplaySettings,
     pub input: InputSettings,
     pub simulator: SimulatorSettings,
 }
@@ -34,10 +35,51 @@ impl Default for Settings {
             version: 1,
             log_level: "info".into(),
             clock: ClockSettings::default(),
+            display: DisplaySettings::default(),
             input: InputSettings::default(),
             simulator: SimulatorSettings::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DisplaySettings {
+    /// Safe-area inset from the left/right and top/bottom edges, in logical
+    /// pixels. Calibrated per device because the AV board crops the edges.
+    pub edge_x: f32,
+    pub edge_y: f32,
+    /// Flip the picture for the optics (applied by the KMS backend, M3).
+    pub mirror_x: bool,
+    pub mirror_y: bool,
+    /// Composite video standard (applied by the KMS backend, M3).
+    pub tv_norm: TvNorm,
+    /// Replace slides and fades with instant changes.
+    pub reduce_motion: bool,
+}
+
+impl DisplaySettings {
+    pub const EDGE_MAX: f32 = 120.0;
+}
+
+impl Default for DisplaySettings {
+    fn default() -> Self {
+        Self {
+            edge_x: 56.0,
+            edge_y: 40.0,
+            mirror_x: false,
+            mirror_y: false,
+            tv_norm: TvNorm::Pal,
+            reduce_motion: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TvNorm {
+    Pal,
+    Ntsc,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -107,6 +149,11 @@ impl Paths {
     pub fn user_settings(&self) -> PathBuf {
         self.data_dir.join("settings.toml")
     }
+
+    /// Root of the Files app.
+    pub fn files(&self) -> PathBuf {
+        self.data_dir.join("files")
+    }
 }
 
 pub fn load(paths: &Paths) -> Settings {
@@ -137,14 +184,62 @@ pub fn load(paths: &Paths) -> Settings {
     })
 }
 
-/// Writes `settings` so that a power cut leaves either the old or the new
-/// file on disk, never a truncated one.
-#[cfg_attr(not(test), allow(dead_code))] // first caller: the Settings app (M4)
-pub fn save_atomic(path: &Path, settings: &Settings) -> anyhow::Result<()> {
+/// Defaults plus the system config, without the user's changes ("Reset all
+/// settings").
+pub fn system_defaults(paths: &Paths) -> Settings {
+    let mut merged = Table::new();
+    if let Some(layer) = read_layer(&paths.system_config) {
+        merge(&mut merged, layer);
+    }
+    merged.try_into().unwrap_or_default()
+}
+
+/// Saves the user layer: only values that differ from defaults + system
+/// config. Values the user never touched stay unpinned, so a later image
+/// update can still change them.
+pub fn save_user(paths: &Paths, settings: &Settings) -> anyhow::Result<()> {
+    let mut base = to_table(&Settings::default())?;
+    if let Some(system) = read_layer(&paths.system_config) {
+        merge(&mut base, system);
+    }
+    let changes = diff(&to_table(settings)?, &base);
+    let text = toml::to_string_pretty(&changes).context("serialize settings")?;
+    write_atomic(&paths.user_settings(), &text)
+}
+
+fn to_table(settings: &Settings) -> anyhow::Result<Table> {
+    match Value::try_from(settings).context("serialize settings")? {
+        Value::Table(t) => Ok(t),
+        _ => anyhow::bail!("settings did not serialize to a table"),
+    }
+}
+
+/// Keys of `current` whose values differ from `base` (recursing into tables).
+fn diff(current: &Table, base: &Table) -> Table {
+    let mut out = Table::new();
+    for (key, value) in current {
+        match (value, base.get(key)) {
+            (Value::Table(c), Some(Value::Table(b))) => {
+                let d = diff(c, b);
+                if !d.is_empty() {
+                    out.insert(key.clone(), Value::Table(d));
+                }
+            }
+            (v, Some(b)) if v == b => {}
+            (v, _) => {
+                out.insert(key.clone(), v.clone());
+            }
+        }
+    }
+    out
+}
+
+/// Writes `text` so that a power cut leaves either the old or the new file
+/// on disk, never a truncated one.
+fn write_atomic(path: &Path, text: &str) -> anyhow::Result<()> {
     let dir = path.parent().unwrap_or(Path::new("."));
     fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
 
-    let text = toml::to_string_pretty(settings).context("serialize settings")?;
     let tmp = path.with_extension("toml.tmp");
     {
         let mut file =
@@ -281,8 +376,36 @@ mod tests {
         let p = temp_paths("roundtrip");
         let mut s = Settings::default();
         s.simulator.scale = 2;
-        save_atomic(&p.user_settings(), &s).unwrap();
+        s.display.tv_norm = TvNorm::Ntsc;
+        save_user(&p, &s).unwrap();
         assert!(!p.user_settings().with_extension("toml.tmp").exists());
         assert_eq!(load(&p), s);
+    }
+
+    #[test]
+    fn save_writes_only_user_changes() {
+        let p = temp_paths("diff");
+        fs::write(&p.system_config, "[display]\nedge_x = 70.0\n").unwrap();
+        let mut s = load(&p);
+        assert_eq!(s.display.edge_x, 70.0);
+        s.display.reduce_motion = true;
+        save_user(&p, &s).unwrap();
+
+        let written = fs::read_to_string(p.user_settings()).unwrap();
+        assert!(written.contains("reduce_motion = true"), "{written}");
+        assert!(
+            !written.contains("edge_x"),
+            "system value not pinned: {written}"
+        );
+        assert!(
+            !written.contains("log_level"),
+            "defaults not written: {written}"
+        );
+
+        // A later image update to the system layer still takes effect.
+        fs::write(&p.system_config, "[display]\nedge_x = 64.0\n").unwrap();
+        let after = load(&p);
+        assert_eq!(after.display.edge_x, 64.0);
+        assert!(after.display.reduce_motion);
     }
 }

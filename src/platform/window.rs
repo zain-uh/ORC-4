@@ -9,8 +9,8 @@ use minifb::{Key as MfKey, KeyRepeat, Scale, Window, WindowOptions};
 use super::Display;
 use super::composite::CompositePreview;
 use crate::app::action::{InputEvent, SourceKind};
-use crate::app::event::Event;
 use crate::config::Settings;
+use crate::event::Event;
 use crate::input::keymap::{Key, Keymap};
 use crate::ui::canvas::{Canvas, HEIGHT, WIDTH};
 

@@ -1,13 +1,11 @@
 //! Stand-in for an app that isn't built yet: proves opening and closing apps
 //! works. Each one is replaced by the real screen in its milestone.
 
-use std::time::Instant;
-
 use crate::app::action::Action;
+use crate::screens::nav::{Cx, Nav, Screen};
 use crate::ui::DrawCx;
 use crate::ui::canvas::{Canvas, HEIGHT, WIDTH, rgb};
 use crate::ui::icons::{self, Icon};
-use crate::ui::nav::{Nav, Screen};
 use crate::ui::text::{Align, fonts};
 use crate::ui::theme::{color, space, typography};
 use crate::ui::widgets::status_bar;
@@ -33,7 +31,7 @@ impl Placeholder {
 }
 
 impl Screen for Placeholder {
-    fn handle(&mut self, _action: Action, _now: Instant) -> Nav {
+    fn handle(&mut self, _action: Action, _cx: &mut Cx) -> Nav {
         Nav::Unhandled // Back/Home use the navigator defaults
     }
 
@@ -84,6 +82,7 @@ impl Screen for Placeholder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::screens::nav::testing::Harness;
     use crate::screens::registry::apps;
     use crate::ui::snapshot::assert_snapshot;
     use crate::ui::theme::Theme;
@@ -91,8 +90,9 @@ mod tests {
 
     #[test]
     fn snapshot_placeholder() {
-        let files = apps().into_iter().find(|a| a.name == "Files").unwrap();
-        let screen = (files.open)(&files);
+        let youtube = apps().into_iter().find(|a| a.name == "YouTube").unwrap();
+        let mut h = Harness::new();
+        let screen = (youtube.open)(&youtube, &mut h.cx(std::time::Instant::now()));
         let mut c = Canvas::new();
         let theme = Theme::default();
         let status = Status {
@@ -105,6 +105,6 @@ mod tests {
                 status: &status,
             },
         );
-        assert_snapshot("placeholder-files", &c);
+        assert_snapshot("placeholder-youtube", &c);
     }
 }

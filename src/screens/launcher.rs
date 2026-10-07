@@ -11,10 +11,10 @@ use std::time::Instant;
 
 use crate::app::action::Action;
 use crate::app::anim::{Ease, Tween};
+use crate::screens::nav::{Cx, Nav, Screen};
 use crate::ui::DrawCx;
 use crate::ui::canvas::{Canvas, WIDTH, rgb, rgba};
 use crate::ui::icons;
-use crate::ui::nav::{Nav, Screen};
 use crate::ui::text::Align;
 use crate::ui::theme::{color, motion, space, typography};
 use crate::ui::widgets::status_bar;
@@ -59,27 +59,33 @@ impl Launcher {
         }
     }
 
-    fn step(&mut self, dir: isize, now: Instant) {
+    fn step(&mut self, dir: isize, cx: &Cx) {
         let target = self.index as isize + dir;
         if !(0..self.apps.len() as isize).contains(&target) {
-            self.bump = Some((now, dir as f32));
+            if !cx.motion(motion::BUMP).is_zero() {
+                self.bump = Some((cx.now, dir as f32));
+            }
             return;
         }
         self.index = target as usize;
-        self.scroll
-            .retarget(self.index as f32, now, motion::PANEL, Ease::OutCubic);
+        self.scroll.retarget(
+            self.index as f32,
+            cx.now,
+            cx.motion(motion::PANEL),
+            Ease::OutCubic,
+        );
     }
 }
 
 impl Screen for Launcher {
-    fn handle(&mut self, action: Action, now: Instant) -> Nav {
+    fn handle(&mut self, action: Action, cx: &mut Cx) -> Nav {
         match action {
-            Action::Left => self.step(-1, now),
-            Action::Right => self.step(1, now),
+            Action::Left => self.step(-1, cx),
+            Action::Right => self.step(1, cx),
             Action::Select => {
                 let app = &self.apps[self.index];
                 log::info!("open {}", app.name);
-                return Nav::Push((app.open)(app));
+                return Nav::Push((app.open)(app, cx));
             }
             _ => return Nav::Unhandled,
         }
@@ -185,6 +191,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
+    use crate::screens::nav::testing::Harness;
     use crate::ui::snapshot::assert_snapshot;
     use crate::ui::theme::Theme;
     use crate::ui::widgets::status_bar::Status;
@@ -208,12 +215,13 @@ mod tests {
     #[test]
     fn slides_between_apps_and_stops_at_the_ends() {
         let mut l = Launcher::new();
+        let mut h = Harness::new();
         let t0 = Instant::now();
-        assert!(matches!(l.handle(Action::Left, t0), Nav::Stay));
+        assert!(matches!(l.handle(Action::Left, &mut h.cx(t0)), Nav::Stay));
         assert_eq!(l.index, 0, "no wrap at the start");
         assert!(l.bump.is_some(), "edge bump instead");
 
-        l.handle(Action::Right, t0);
+        l.handle(Action::Right, &mut h.cx(t0));
         assert_eq!(l.index, 1);
         assert!(l.animate(t0 + motion::PANEL / 2));
         assert!(l.pos > 0.0 && l.pos < 1.0, "sliding");
@@ -221,7 +229,7 @@ mod tests {
         assert_eq!(l.pos, 1.0);
 
         for _ in 0..10 {
-            l.handle(Action::Right, t0);
+            l.handle(Action::Right, &mut h.cx(t0));
         }
         assert_eq!(l.index, l.apps.len() - 1, "no wrap at the end");
     }
@@ -229,8 +237,9 @@ mod tests {
     #[test]
     fn bump_returns_to_rest() {
         let mut l = Launcher::new();
+        let mut h = Harness::new();
         let t0 = Instant::now();
-        l.handle(Action::Left, t0);
+        l.handle(Action::Left, &mut h.cx(t0));
         l.animate(t0 + motion::BUMP / 2);
         assert!(l.bump_offset > 0.0, "nudged right when pushing left");
         assert!(l.animate(t0 + motion::BUMP), "final frame");
@@ -241,16 +250,24 @@ mod tests {
     #[test]
     fn select_opens_the_focused_app_and_back_is_left_to_the_navigator() {
         let mut l = Launcher::new();
+        let mut h = Harness::new();
         let t0 = Instant::now();
-        assert!(matches!(l.handle(Action::Select, t0), Nav::Push(_)));
-        assert!(matches!(l.handle(Action::Back, t0), Nav::Unhandled));
+        assert!(matches!(
+            l.handle(Action::Select, &mut h.cx(t0)),
+            Nav::Push(_)
+        ));
+        assert!(matches!(
+            l.handle(Action::Back, &mut h.cx(t0)),
+            Nav::Unhandled
+        ));
     }
 
     #[test]
     fn snapshot_launcher_at_rest() {
         let mut l = Launcher::new();
+        let mut h = Harness::new();
         let t0 = Instant::now();
-        l.handle(Action::Right, t0);
+        l.handle(Action::Right, &mut h.cx(t0));
         l.animate(t0 + Duration::from_secs(1));
         assert_snapshot("launcher", &render(&l));
     }
@@ -258,8 +275,9 @@ mod tests {
     #[test]
     fn snapshot_launcher_mid_slide() {
         let mut l = Launcher::new();
+        let mut h = Harness::new();
         let t0 = Instant::now();
-        l.handle(Action::Right, t0);
+        l.handle(Action::Right, &mut h.cx(t0));
         l.animate(t0 + motion::PANEL / 3);
         assert_snapshot("launcher-sliding", &render(&l));
     }
