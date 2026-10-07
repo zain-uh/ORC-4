@@ -10,6 +10,7 @@ mod logging;
 mod platform;
 mod runtime;
 mod screens;
+mod services;
 mod ui;
 
 use std::process::ExitCode;
@@ -40,5 +41,5 @@ fn run(started: Instant) -> anyhow::Result<()> {
 
     let mut display = platform::open(&settings)?;
     let (tx, rx) = mpsc::channel();
-    runtime::run(display.as_mut(), &tx, &rx, started)
+    runtime::run(display.as_mut(), &tx, &rx, &settings, started)
 }

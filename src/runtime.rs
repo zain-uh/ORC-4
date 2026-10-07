@@ -5,19 +5,30 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::time::Instant;
 
 use crate::app::event::Event;
+use crate::config::Settings;
 use crate::platform::Display;
-use crate::screens::test_pattern::{Flow, TestPattern};
+use crate::screens::gallery::{Flow, Gallery};
+use crate::services::clock;
+use crate::ui::DrawCx;
 use crate::ui::canvas::Canvas;
+use crate::ui::theme::Theme;
+use crate::ui::widgets::status_bar::Status;
 
-/// Runs until shutdown. The UI thread sleeps whenever nothing changes:
-/// it redraws only after an event or a running animation marks it dirty.
+/// Runs until shutdown. The UI thread sleeps whenever nothing changes: it
+/// redraws only after an event, a running animation or a clock minute change.
 pub fn run(
     display: &mut dyn Display,
     tx: &Sender<Event>,
     rx: &Receiver<Event>,
+    settings: &Settings,
     started: Instant,
 ) -> anyhow::Result<()> {
-    let mut screen = TestPattern::default();
+    let theme = Theme::default();
+    let utc_offset = settings.clock.utc_offset_minutes;
+    let mut status = Status {
+        clock: clock::local_hhmm(utc_offset),
+    };
+    let mut screen = Gallery::new();
     let mut canvas = Canvas::new();
     let mut dirty = true;
     let mut first_frame = true;
@@ -25,12 +36,12 @@ pub fn run(
     loop {
         display.pump(tx)?;
 
-        // Block only when nothing is pending and the backend does not need
-        // pumping. `recv` cannot fail: we hold a sender ourselves.
+        // Block only when idle and the backend does not need pumping; wake
+        // at the next minute so the clock stays right.
         let first = if dirty || display.needs_polling() {
             rx.try_recv().ok()
         } else {
-            rx.recv().ok()
+            rx.recv_timeout(clock::until_next_minute()).ok()
         };
 
         for event in first
@@ -50,6 +61,7 @@ pub fn run(
                         input.source
                     );
                     match screen.handle(input.action, Instant::now()) {
+                        Flow::Stay => {}
                         Flow::Redraw => dirty = true,
                         Flow::Quit => return Ok(()),
                     }
@@ -57,12 +69,21 @@ pub fn run(
             }
         }
 
+        let now_clock = clock::local_hhmm(utc_offset);
+        if now_clock != status.clock {
+            status.clock = now_clock;
+            dirty = true;
+        }
         if screen.animate(Instant::now()) {
             dirty = true;
         }
 
         if dirty {
-            screen.draw(&mut canvas);
+            let cx = DrawCx {
+                theme: &theme,
+                status: &status,
+            };
+            screen.draw(&mut canvas, &cx);
             display.present(&canvas)?;
             dirty = false;
             if first_frame {

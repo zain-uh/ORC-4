@@ -22,6 +22,7 @@ pub struct Settings {
     pub version: u32,
     /// error | warn | info | debug | trace. `ORC4_LOG` overrides it.
     pub log_level: String,
+    pub clock: ClockSettings,
     pub simulator: SimulatorSettings,
 }
 
@@ -30,9 +31,17 @@ impl Default for Settings {
         Self {
             version: 1,
             log_level: "info".into(),
+            clock: ClockSettings::default(),
             simulator: SimulatorSettings::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ClockSettings {
+    /// Minutes east of UTC (UK summer time = 60). The phone will set this.
+    pub utc_offset_minutes: i32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -40,11 +49,16 @@ impl Default for Settings {
 pub struct SimulatorSettings {
     /// Integer window scale on the dev PC (1 = 960×540, 2 = 1920×1080).
     pub scale: u32,
+    /// Start with the composite-video preview filter on (toggle with F2).
+    pub composite_preview: bool,
 }
 
 impl Default for SimulatorSettings {
     fn default() -> Self {
-        Self { scale: 1 }
+        Self {
+            scale: 1,
+            composite_preview: false,
+        }
     }
 }
 

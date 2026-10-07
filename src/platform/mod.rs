@@ -1,6 +1,8 @@
 //! Display backends. The rest of the app only sees the `Display` trait.
 
 #[cfg(feature = "simulator")]
+mod composite;
+#[cfg(feature = "simulator")]
 mod window;
 
 use std::sync::mpsc::Sender;
@@ -29,9 +31,7 @@ pub trait Display {
 pub fn open(settings: &Settings) -> anyhow::Result<Box<dyn Display>> {
     #[cfg(feature = "simulator")]
     {
-        Ok(Box::new(window::WindowDisplay::new(
-            settings.simulator.scale,
-        )?))
+        Ok(Box::new(window::WindowDisplay::new(&settings.simulator)?))
     }
     #[cfg(not(feature = "simulator"))]
     {
