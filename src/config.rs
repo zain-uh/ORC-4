@@ -26,6 +26,7 @@ pub struct Settings {
     pub clock: ClockSettings,
     pub display: DisplaySettings,
     pub input: InputSettings,
+    pub phone: PhoneSettings,
     pub simulator: SimulatorSettings,
 }
 
@@ -37,6 +38,7 @@ impl Default for Settings {
             clock: ClockSettings::default(),
             display: DisplaySettings::default(),
             input: InputSettings::default(),
+            phone: PhoneSettings::default(),
             simulator: SimulatorSettings::default(),
         }
     }
@@ -80,6 +82,42 @@ impl Default for DisplaySettings {
 pub enum TvNorm {
     Pal,
     Ntsc,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PhoneSettings {
+    /// Accept phone connections at all.
+    pub enabled: bool,
+    /// Address the phone link listens on. The simulator only listens
+    /// locally, so the PC firewall never asks.
+    pub listen: String,
+    /// Name shown to the phone.
+    pub name: String,
+    pub paired: Vec<PairedPhone>,
+}
+
+impl Default for PhoneSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            listen: if cfg!(feature = "simulator") {
+                "127.0.0.1:4004"
+            } else {
+                "0.0.0.0:4004"
+            }
+            .into(),
+            name: "ORC-4".into(),
+            paired: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PairedPhone {
+    pub name: String,
+    /// Secret issued at pairing; the phone presents it on every connect.
+    pub token: String,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

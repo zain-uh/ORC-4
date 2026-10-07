@@ -27,6 +27,21 @@ space = "select"
 
 Debug logging: set `ORC4_LOG=debug`. Settings live in `dev-data/` (git-ignored).
 
+## Phone link (dev remote)
+
+The glasses accept a paired phone over WebSocket (protocol in
+`src/input/remote/protocol.rs`). Until the React Native app exists, use the
+dev remote:
+
+1. Run the simulator (`cargo run`). It listens on `ws://127.0.0.1:4004`.
+2. Open `tools/remote.html` in Chrome or Edge and press Connect.
+3. In the simulator: Settings › Phone › Pair a phone. Type the 6-digit code
+   into the remote and press Pair.
+
+The remote then drives the UI, types into text fields, and sets the clock
+and time zone. On the glasses, the link listens on all interfaces; see
+Settings › Phone › Address.
+
 ## Checks
 
 ```bash

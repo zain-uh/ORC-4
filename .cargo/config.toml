@@ -1,0 +1,6 @@
+# Dev PC (Windows, GNU toolchain): getrandom's default Windows backend needs
+# `dlltool` on PATH, which the GNU toolchain doesn't provide. The legacy
+# backend (RtlGenRandom via advapi32) links normally. Device builds are
+# unaffected.
+[target.x86_64-pc-windows-gnu]
+rustflags = ["--cfg", 'getrandom_backend="windows_legacy"']

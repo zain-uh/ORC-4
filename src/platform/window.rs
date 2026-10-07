@@ -1,14 +1,16 @@
 //! Dev-PC simulator: shows the canvas in a desktop window and acts as the
 //! keyboard input source. F2 toggles the composite-video preview.
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::mpsc::Sender;
 
 use anyhow::anyhow;
-use minifb::{Key as MfKey, KeyRepeat, Scale, Window, WindowOptions};
+use minifb::{InputCallback, Key as MfKey, KeyRepeat, Scale, Window, WindowOptions};
 
 use super::Display;
 use super::composite::CompositePreview;
-use crate::app::action::{InputEvent, SourceKind};
+use crate::app::action::{InputEvent, SourceKind, TextEdit};
 use crate::config::Settings;
 use crate::event::Event;
 use crate::input::keymap::{Key, Keymap};
@@ -29,7 +31,9 @@ pub struct WindowDisplay {
     preview_on: bool,
     toggle_preview: bool,
     keymap: Keymap,
-    pending: Vec<InputEvent>,
+    /// Characters typed since the last update (filled by minifb's callback).
+    typed: Rc<RefCell<String>>,
+    pending: Vec<Event>,
     /// `present` already polled the window this iteration; skip one `update`
     /// so the loop is paced once per frame, not twice.
     polled_by_present: bool,
@@ -67,10 +71,13 @@ impl WindowDisplay {
             preview_on: settings.composite_preview,
             toggle_preview: false,
             keymap,
+            typed: Rc::default(),
             pending: Vec::new(),
             polled_by_present: false,
         };
         display.update_title();
+        let typed = Typed(Rc::clone(&display.typed));
+        display.window.set_input_callback(Box::new(typed));
         Ok(display)
     }
 
@@ -104,15 +111,23 @@ impl WindowDisplay {
         if fresh.contains(&MfKey::F2) {
             self.toggle_preview = true;
         }
+        let typed = std::mem::take(&mut *self.typed.borrow_mut());
+        if !typed.is_empty() {
+            self.pending.push(Event::Text(TextEdit::Insert(typed)));
+        }
         for key in self.window.get_keys_pressed(KeyRepeat::Yes) {
+            if key == MfKey::Backspace {
+                self.pending.push(Event::Text(TextEdit::Backspace));
+                continue;
+            }
             let Some(action) = map_key(key).and_then(|k| self.keymap.action(k)) else {
                 continue;
             };
-            self.pending.push(InputEvent {
+            self.pending.push(Event::Input(InputEvent {
                 action,
                 repeat: !fresh.contains(&key),
                 source: SourceKind::Keyboard,
-            });
+            }));
         }
     }
 }
@@ -140,7 +155,7 @@ impl Display for WindowDisplay {
             self.show()?;
         }
         for ev in self.pending.drain(..) {
-            let _ = events.send(Event::Input(ev));
+            let _ = events.send(ev);
         }
         if !self.window.is_open() {
             let _ = events.send(Event::Shutdown);
@@ -167,4 +182,15 @@ fn map_key(key: MfKey) -> Option<Key> {
         MfKey::Space => Key::Space,
         _ => return None,
     })
+}
+
+/// Receives typed characters from minifb (it filters most control keys).
+struct Typed(Rc<RefCell<String>>);
+
+impl InputCallback for Typed {
+    fn add_char(&mut self, code: u32) {
+        if let Some(ch) = char::from_u32(code).filter(|c| !c.is_control()) {
+            self.0.borrow_mut().push(ch);
+        }
+    }
 }

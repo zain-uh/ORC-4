@@ -4,7 +4,9 @@
 //! Linux evdev reader (M3) both translate their native codes into it, so there
 //! is exactly one mapping table to configure.
 //!
-//! Bindings can be overridden in settings, e.g. for a Bluetooth clicker:
+//! Backspace is not bound: it deletes text (see the simulator window and,
+//! later, the evdev reader). Bindings can be overridden in settings, e.g.
+//! for a Bluetooth clicker:
 //!
 //! ```toml
 //! [input.keys]
@@ -61,7 +63,6 @@ impl Default for Keymap {
             (Key::Right, Action::Right),
             (Key::Enter, Action::Select),
             (Key::Escape, Action::Back),
-            (Key::Backspace, Action::Back),
             (Key::Home, Action::Home),
             (Key::Tab, Action::Menu),
         ]);

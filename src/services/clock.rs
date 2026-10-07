@@ -4,24 +4,50 @@
 //! system clock reads 1970. Any time before 2025 is treated as "unknown" and
 //! the clock is hidden rather than showing a wrong time.
 //!
-//! The UTC offset is a setting for now; the phone link will provide it (M5).
+//! The phone sends its time and UTC offset when it connects. The time is kept
+//! as a correction to the system clock (setting the system clock needs root;
+//! that comes with the device image), so it survives until the next restart.
 
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// 2025-01-01T00:00:00Z.
 const EARLIEST_VALID_UNIX: u64 = 1_735_689_600;
 
+/// Seconds to add to the system clock (set from the phone).
+static CORRECTION_SECS: AtomicI64 = AtomicI64::new(0);
+
+/// Trust `unix` (from the phone) as the current time.
+pub fn set_time(unix: i64) {
+    let system = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64);
+    let correction = unix - system;
+    if correction.abs() > 2 {
+        log::info!("clock corrected by {correction} s from the phone");
+    }
+    CORRECTION_SECS.store(correction, Ordering::Relaxed);
+}
+
+fn now() -> SystemTime {
+    let c = CORRECTION_SECS.load(Ordering::Relaxed);
+    let d = Duration::from_secs(c.unsigned_abs());
+    if c >= 0 {
+        SystemTime::now() + d
+    } else {
+        SystemTime::now() - d
+    }
+}
+
 /// Local hours and minutes, or `None` if the clock has not been set.
 pub fn local_hhmm(utc_offset_minutes: i32) -> Option<(u8, u8)> {
-    hhmm_at(SystemTime::now(), utc_offset_minutes)
+    hhmm_at(now(), utc_offset_minutes)
 }
 
 /// Time until the next minute boundary, so an idle UI wakes exactly when the
 /// clock needs redrawing.
 pub fn until_next_minute() -> Duration {
-    let since_epoch = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
+    let since_epoch = now().duration_since(UNIX_EPOCH).unwrap_or_default();
     let into_minute = Duration::from_nanos((since_epoch.as_nanos() % 60_000_000_000) as u64);
     Duration::from_secs(60) - into_minute
 }

@@ -50,3 +50,31 @@ pub struct InputEvent {
     pub repeat: bool,
     pub source: SourceKind,
 }
+
+/// Typing, from the phone's keyboard or a physical keyboard. Kept separate
+/// from `Action` because it carries text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TextEdit {
+    Insert(String),
+    Backspace,
+    Clear,
+    /// "Done" / Enter on the phone keyboard.
+    Submit,
+}
+
+/// A screen asking for text. Sent to the phone so it can open its keyboard
+/// with the current value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextRequest {
+    pub prompt: String,
+    pub value: String,
+}
+
+/// Things that happened outside the screens that a screen may react to.
+#[allow(clippy::enum_variant_names)] // Bluetooth and Wi-Fi notices join in M7/M8
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Notice {
+    PhonePaired(String),
+    PhoneConnected(String),
+    PhoneDisconnected(String),
+}

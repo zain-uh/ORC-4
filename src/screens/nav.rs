@@ -4,8 +4,9 @@
 
 use std::time::{Duration, Instant};
 
-use crate::app::action::Action;
+use crate::app::action::{Action, Notice, TextEdit, TextRequest};
 use crate::config::{Paths, Settings};
+use crate::input::remote::link::PhoneLink;
 use crate::services::{ServiceEvent, Services};
 use crate::ui::DrawCx;
 use crate::ui::canvas::{Canvas, HEIGHT, WIDTH, rgba};
@@ -18,6 +19,7 @@ pub struct Cx<'a> {
     pub settings: &'a mut Settings,
     pub services: &'a Services,
     pub paths: &'a Paths,
+    pub link: &'a mut PhoneLink,
     toast: Option<String>,
     exit: bool,
 }
@@ -28,12 +30,14 @@ impl<'a> Cx<'a> {
         settings: &'a mut Settings,
         services: &'a Services,
         paths: &'a Paths,
+        link: &'a mut PhoneLink,
     ) -> Self {
         Self {
             now,
             settings,
             services,
             paths,
+            link,
             toast: None,
             exit: false,
         }
@@ -77,6 +81,22 @@ pub trait Screen {
     /// unchanged (`Err`) if it isn't for this screen.
     fn on_service(&mut self, event: ServiceEvent, _cx: &mut Cx) -> Result<Nav, ServiceEvent> {
         Err(event)
+    }
+
+    /// Typing (phone keyboard or physical keyboard). Ignored by default.
+    fn text(&mut self, _edit: &TextEdit, _cx: &mut Cx) -> Nav {
+        Nav::Unhandled
+    }
+
+    /// Something happened elsewhere (a phone connected...). Ignored by default.
+    fn on_notice(&mut self, _notice: &Notice, _cx: &mut Cx) -> Nav {
+        Nav::Unhandled
+    }
+
+    /// `Some` while this screen has a text field focused, so the phone can
+    /// open its keyboard.
+    fn text_request(&self) -> Option<TextRequest> {
+        None
     }
 
     /// Called when the screen becomes the top one (opened, or returned to).
@@ -159,6 +179,33 @@ impl Navigator {
         };
         let redraw = self.apply(nav, cx);
         self.take_toast(cx) || redraw
+    }
+
+    /// Routes typing to the top screen. Returns true if a redraw is needed.
+    pub fn text(&mut self, edit: &TextEdit, cx: &mut Cx) -> bool {
+        let nav = self.top_mut().text(edit, cx);
+        let redraw = self.apply(nav, cx);
+        self.take_toast(cx) || redraw
+    }
+
+    /// Tells the top screen about `notice`; phone connections also get a
+    /// toast if the screen doesn't handle them itself.
+    pub fn notify(&mut self, notice: &Notice, cx: &mut Cx) -> bool {
+        let nav = self.top_mut().on_notice(notice, cx);
+        if matches!(nav, Nav::Unhandled) {
+            match notice {
+                Notice::PhonePaired(name) => cx.toast(format!("Paired with {name}")),
+                Notice::PhoneConnected(name) => cx.toast(format!("{name} connected")),
+                Notice::PhoneDisconnected(name) => cx.toast(format!("{name} disconnected")),
+            }
+        }
+        let redraw = self.apply(nav, cx);
+        self.take_toast(cx) || redraw
+    }
+
+    /// The top screen's text request.
+    pub fn text_request(&self) -> Option<TextRequest> {
+        self.top().text_request()
     }
 
     /// Offers a background result to each screen, top first. Returns true if
@@ -327,6 +374,7 @@ pub mod testing {
         pub settings: Settings,
         pub services: Services,
         pub paths: Paths,
+        pub link: PhoneLink,
         pub events: mpsc::Receiver<crate::event::Event>,
     }
 
@@ -341,12 +389,19 @@ pub mod testing {
                     system_config: dir.join("system.toml"),
                     data_dir: dir,
                 },
+                link: PhoneLink::new(),
                 events,
             }
         }
 
         pub fn cx(&mut self, now: Instant) -> Cx<'_> {
-            Cx::new(now, &mut self.settings, &self.services, &self.paths)
+            Cx::new(
+                now,
+                &mut self.settings,
+                &self.services,
+                &self.paths,
+                &mut self.link,
+            )
         }
 
         /// Next background result, waiting up to 5 s.

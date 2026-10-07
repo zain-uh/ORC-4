@@ -5,12 +5,15 @@
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::{Duration, Instant};
 
+use crate::app::action::{Action, Notice, TextEdit};
 use crate::config::{self, Paths, Settings};
 use crate::event::Event;
+use crate::input::remote::link::{LinkOutput, PhoneLink};
+use crate::input::remote::server;
 use crate::platform::Display;
 use crate::screens::launcher::Launcher;
 use crate::screens::nav::{Cx, Navigator};
-use crate::services::{Services, clock};
+use crate::services::{ServiceEvent, Services, clock};
 use crate::ui::DrawCx;
 use crate::ui::canvas::Canvas;
 use crate::ui::theme::Theme;
@@ -19,6 +22,14 @@ use crate::ui::widgets::status_bar::Status;
 /// Settings are written this long after they first change, so holding an
 /// arrow key in the calibration screen doesn't hammer the SD card.
 const SAVE_DELAY: Duration = Duration::from_secs(1);
+
+/// One unit of work for the screens, whatever its source.
+enum Step {
+    Action(Action),
+    Text(TextEdit),
+    Notice(Notice),
+    Service(ServiceEvent),
+}
 
 /// Runs until shutdown. The UI thread sleeps whenever nothing changes: it
 /// redraws only after an event, a running animation or a clock minute change.
@@ -31,6 +42,12 @@ pub fn run(
     started: Instant,
 ) -> anyhow::Result<()> {
     let services = Services::start(tx.clone());
+    let mut link = PhoneLink::new();
+    // The glasses must work without a phone: a failure here is only logged.
+    match server::start(&settings.phone.listen, tx.clone()) {
+        Ok(addr) => log::info!("phone link listening on {addr}"),
+        Err(e) => log::error!("phone link unavailable on {}: {e}", settings.phone.listen),
+    }
     let mut saved = settings.clone();
     let mut save_due: Option<Instant> = None;
     let mut status = Status {
@@ -42,6 +59,7 @@ pub fn run(
         &mut settings,
         &services,
         paths,
+        &mut link,
     ));
     let mut canvas = Canvas::new();
     let mut dirty = true;
@@ -66,8 +84,8 @@ pub fn run(
             .into_iter()
             .chain(std::iter::from_fn(|| rx.try_recv().ok()))
         {
-            let mut cx = Cx::new(Instant::now(), &mut settings, &services, paths);
-            match event {
+            let now = Instant::now();
+            let steps = match event {
                 Event::Shutdown => {
                     log::info!("shutdown requested");
                     save_if_changed(paths, &settings, &mut saved);
@@ -80,9 +98,40 @@ pub fn run(
                         input.repeat,
                         input.source
                     );
-                    dirty |= screens.handle(input.action, &mut cx);
+                    vec![Step::Action(input.action)]
                 }
-                Event::Service(result) => dirty |= screens.dispatch(result, &mut cx),
+                Event::Text(edit) => vec![Step::Text(edit)],
+                Event::Service(result) => vec![Step::Service(result)],
+                // Phone traffic becomes the same steps a keyboard produces.
+                Event::Remote(remote) => {
+                    let outputs = link.handle(remote, &mut settings, now);
+                    outputs
+                        .into_iter()
+                        .filter_map(|output| match output {
+                            LinkOutput::Input(action) => Some(Step::Action(action)),
+                            LinkOutput::Text(edit) => Some(Step::Text(edit)),
+                            LinkOutput::Notice(notice) => Some(Step::Notice(notice)),
+                            LinkOutput::Time {
+                                unix,
+                                utc_offset_minutes,
+                            } => {
+                                clock::set_time(unix);
+                                settings.clock.utc_offset_minutes = utc_offset_minutes;
+                                None
+                            }
+                        })
+                        .collect()
+                }
+            };
+
+            let mut cx = Cx::new(now, &mut settings, &services, paths, &mut link);
+            for step in steps {
+                dirty |= match step {
+                    Step::Action(action) => screens.handle(action, &mut cx),
+                    Step::Text(edit) => screens.text(&edit, &mut cx),
+                    Step::Notice(notice) => screens.notify(&notice, &mut cx),
+                    Step::Service(result) => screens.dispatch(result, &mut cx),
+                };
             }
             if cx.exit_requested() {
                 log::info!("exit requested");
@@ -90,6 +139,11 @@ pub fn run(
                 return Ok(());
             }
         }
+
+        // Keep phones in step: drop connections settings no longer allow, and
+        // tell them whether a text field is open.
+        link.enforce(&settings);
+        link.set_text_request(screens.text_request());
 
         let now = Instant::now();
         if settings != saved {

@@ -27,6 +27,16 @@ pub fn device_info() -> DeviceInfo {
     }
 }
 
+/// The address other devices on the network can reach us at: the source
+/// address the OS would use for an outside connection. Connecting a UDP
+/// socket sends nothing. `None` when there's no network.
+pub fn local_ip() -> Option<std::net::IpAddr> {
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("192.0.2.1:9").ok()?; // TEST-NET-1, never routed anywhere
+    let ip = socket.local_addr().ok()?.ip();
+    (!ip.is_unspecified()).then_some(ip)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PowerAction {
     Reboot,

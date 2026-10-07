@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ORC-4 Dev Remote</title>
+<!--
+  Development stand-in for the phone app. Speaks phone-link protocol v1
+  (see src/input/remote/protocol.rs). Open this file in a browser while
+  ORC-4 runs; the simulator listens on ws://127.0.0.1:4004.
+-->
+<style>
+  :root {
+    --bg: #0d0d0f; --surface: #1a1a1d; --raised: #26262b; --text: #f2f2f2;
+    --muted: #a6a6a6; --accent: #3b6fd8; --danger: #c4302b; --ok: #3aa55d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex; justify-content: center; padding: 16px;
+  }
+  main { width: 100%; max-width: 420px; display: grid; gap: 16px; }
+  h1 { font-size: 18px; margin: 0; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--danger); }
+  .dot.on { background: var(--ok); }
+  section { background: var(--surface); border-radius: 16px; padding: 16px; display: grid; gap: 10px; }
+  label { color: var(--muted); font-size: 13px; }
+  input {
+    width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #333;
+    background: var(--bg); color: var(--text); font: inherit;
+  }
+  .row { display: flex; gap: 8px; }
+  button {
+    border: 0; border-radius: 12px; padding: 12px; font: inherit; font-weight: 600;
+    background: var(--raised); color: var(--text); cursor: pointer;
+  }
+  button:active { transform: scale(0.97); }
+  button.primary { background: var(--accent); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .pad button { height: 64px; font-size: 22px; }
+  .pad .ok { background: var(--accent); font-size: 16px; }
+  .extra { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  #textBox { display: none; }
+  #textBox.open { display: grid; }
+  #log {
+    font: 12px/1.5 ui-monospace, Consolas, monospace; color: var(--muted);
+    max-height: 160px; overflow-y: auto; white-space: pre-wrap; margin: 0;
+  }
+  .hint { color: var(--muted); font-size: 13px; margin: 0; }
+</style>
+</head>
+<body>
+<main>
+  <h1><span id="dot" class="dot"></span> ORC-4 dev remote</h1>
+
+  <section>
+    <label for="addr">Glasses address</label>
+    <div class="row">
+      <input id="addr" value="ws://127.0.0.1:4004" spellcheck="false">
+      <button id="connect" class="primary">Connect</button>
+    </div>
+    <div id="pairRow" class="row" hidden>
+      <input id="code" inputmode="numeric" maxlength="6" placeholder="6-digit code from Settings › Phone › Pair a phone">
+      <button id="pair" class="primary">Pair</button>
+    </div>
+    <p id="state" class="hint">Not connected.</p>
+  </section>
+
+  <section>
+    <div class="pad">
+      <span></span><button data-a="up" aria-label="Up">▲</button><span></span>
+      <button data-a="left" aria-label="Left">◀</button>
+      <button data-a="select" class="ok">OK</button>
+      <button data-a="right" aria-label="Right">▶</button>
+      <span></span><button data-a="down" aria-label="Down">▼</button><span></span>
+    </div>
+    <div class="extra">
+      <button data-a="back">Back</button>
+      <button data-a="home">Home</button>
+      <button data-a="menu">Menu</button>
+    </div>
+    <p class="hint">Keyboard works too: arrows, Enter, Esc, H (home), M (menu).</p>
+  </section>
+
+  <section id="textBox">
+    <label id="prompt" for="text">Text</label>
+    <input id="text" autocomplete="off" spellcheck="false">
+    <div class="row">
+      <button id="clear">Clear</button>
+      <button id="submit" class="primary" style="flex:1">Done</button>
+    </div>
+  </section>
+
+  <section>
+    <label>Log</label>
+    <pre id="log"></pre>
+  </section>
+</main>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const DEVICE = "Dev remote";
+let ws = null;
+let authed = false;
+
+const tokenKey = () => "orc4-token " + $("addr").value;
+
+function log(line) {
+  const el = $("log");
+  el.textContent += line + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+
+function setState(text, connected) {
+  $("state").textContent = text;
+  $("dot").classList.toggle("on", !!connected);
+}
+
+function send(msg) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify(msg));
+}
+
+function connect() {
+  if (ws) ws.close();
+  authed = false;
+  setState("Connecting…");
+  ws = new WebSocket($("addr").value);
+  ws.onopen = () => {
+    let token = null;
+    try { token = localStorage.getItem(tokenKey()); } catch (_) {}
+    if (token) {
+      send({ t: "hello", v: 1, device: DEVICE, token });
+      setState("Signing in…");
+    } else {
+      $("pairRow").hidden = false;
+      setState("Connected. Open Settings › Phone › Pair a phone on the glasses, then enter the code.");
+    }
+  };
+  ws.onmessage = (e) => onMessage(JSON.parse(e.data));
+  ws.onclose = () => { authed = false; setState("Disconnected."); showText(null); };
+  ws.onerror = () => setState("Can't reach the glasses at that address.");
+}
+
+function onMessage(m) {
+  log("← " + JSON.stringify(m));
+  switch (m.t) {
+    case "paired":
+      try { localStorage.setItem(tokenKey(), m.token); } catch (_) {}
+      $("pairRow").hidden = true;
+      break;
+    case "welcome":
+      authed = true;
+      setState("Connected to " + m.name + ".", true);
+      // Give the glasses our clock and time zone.
+      send({ t: "time", unix: Math.floor(Date.now() / 1000), utc_offset_minutes: -new Date().getTimezoneOffset() });
+      break;
+    case "text_request":
+      showText(m.prompt === undefined ? null : m);
+      break;
+    case "error":
+      setState(m.message);
+      if (m.code === "not_paired") {
+        try { localStorage.removeItem(tokenKey()); } catch (_) {}
+        $("pairRow").hidden = false;
+      }
+      break;
+  }
+}
+
+function action(a) {
+  if (!authed) return;
+  log("→ " + a);
+  send({ t: "action", a });
+}
+
+// Text: the glasses own the value; we send edits and mirror what comes back.
+function showText(req) {
+  $("textBox").classList.toggle("open", !!req);
+  if (!req) return;
+  $("prompt").textContent = req.prompt;
+  if ($("text").value !== req.value) $("text").value = req.value;
+  if (document.activeElement !== $("text")) $("text").focus();
+}
+
+$("text").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { send({ t: "text", op: "submit" }); e.preventDefault(); }
+  else if (e.key === "Backspace") { send({ t: "text", op: "backspace" }); e.preventDefault(); }
+  else if (e.key === "Escape") { action("back"); e.preventDefault(); }
+  else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+    send({ t: "text", op: "insert", s: e.key }); e.preventDefault();
+  }
+});
+$("text").addEventListener("paste", (e) => {
+  send({ t: "text", op: "insert", s: e.clipboardData.getData("text") });
+  e.preventDefault();
+});
+$("clear").onclick = () => send({ t: "text", op: "clear" });
+$("submit").onclick = () => send({ t: "text", op: "submit" });
+
+$("connect").onclick = connect;
+$("pair").onclick = () => {
+  send({ t: "pair", v: 1, device: DEVICE, code: $("code").value.trim() });
+};
+$("code").addEventListener("keydown", (e) => { if (e.key === "Enter") $("pair").click(); });
+document.querySelectorAll("[data-a]").forEach((b) => (b.onclick = () => action(b.dataset.a)));
+
+// Keyboard shortcuts when not typing in a field.
+const KEYS = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
+               Enter: "select", Escape: "back", h: "home", m: "menu" };
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT") return;
+  const a = KEYS[e.key];
+  if (a) { action(a); e.preventDefault(); }
+});
+</script>
+</body>
+</html>
