@@ -7,7 +7,7 @@
 
 use std::fmt;
 use std::fs;
-use std::io::{self, BufReader, ErrorKind, Read};
+use std::io::{self, ErrorKind, Read};
 use std::path::{Path, PathBuf};
 
 use zune_jpeg::JpegDecoder;
@@ -17,6 +17,7 @@ use zune_jpeg::zune_core::options::DecoderOptions;
 use super::UserError;
 
 const MAX_IMAGE_PIXELS: u64 = 16_000_000;
+const MAX_IMAGE_FILE_BYTES: u64 = 64 * 1024 * 1024;
 pub const MAX_TEXT_BYTES: u64 = 512 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -127,10 +128,24 @@ pub fn load_image(path: &Path, max_w: u32, max_h: u32) -> Result<Image, UserErro
         .extension()
         .and_then(|e| e.to_str())
         .map(str::to_ascii_lowercase);
-    let (w, h, rgba) = match ext.as_deref() {
-        Some("png") => decode_png(path)?,
-        Some("jpg" | "jpeg") => decode_jpeg(path)?,
-        _ => return Err(UserError::Unsupported),
+    if !matches!(ext.as_deref(), Some("png" | "jpg" | "jpeg")) {
+        return Err(UserError::Unsupported);
+    }
+    if fs::metadata(path).map_err(io_error)?.len() > MAX_IMAGE_FILE_BYTES {
+        return Err(UserError::TooLarge);
+    }
+    decode_image(&fs::read(path).map_err(io_error)?, max_w, max_h)
+}
+
+/// Decodes PNG or JPEG bytes (detected from the content, not a file name),
+/// scaled down to fit `max_w`×`max_h`.
+pub fn decode_image(bytes: &[u8], max_w: u32, max_h: u32) -> Result<Image, UserError> {
+    let (w, h, rgba) = if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
+        decode_png(bytes)?
+    } else if bytes.starts_with(&[0xFF, 0xD8]) {
+        decode_jpeg(bytes)?
+    } else {
+        return Err(UserError::Unsupported);
     };
     let (width, height, mut rgba) = fit(&rgba, w, h, max_w, max_h);
     premultiply(&mut rgba);
@@ -148,9 +163,8 @@ fn check_size(w: u32, h: u32) -> Result<(), UserError> {
     Ok(())
 }
 
-fn decode_png(path: &Path) -> Result<(u32, u32, Vec<u8>), UserError> {
-    let file = fs::File::open(path).map_err(io_error)?;
-    let mut decoder = png::Decoder::new(BufReader::new(file));
+fn decode_png(bytes: &[u8]) -> Result<(u32, u32, Vec<u8>), UserError> {
+    let mut decoder = png::Decoder::new(io::Cursor::new(bytes));
     decoder.set_transformations(png::Transformations::normalize_to_color8());
     let mut reader = decoder.read_info().map_err(|e| decode_error("png", e))?;
     let (w, h) = (reader.info().width, reader.info().height);
@@ -170,8 +184,7 @@ fn decode_png(path: &Path) -> Result<(u32, u32, Vec<u8>), UserError> {
     Ok((w, h, rgba))
 }
 
-fn decode_jpeg(path: &Path) -> Result<(u32, u32, Vec<u8>), UserError> {
-    let bytes = fs::read(path).map_err(io_error)?;
+fn decode_jpeg(bytes: &[u8]) -> Result<(u32, u32, Vec<u8>), UserError> {
     let options = DecoderOptions::default().jpeg_set_out_colorspace(ColorSpace::RGBA);
     let mut decoder = JpegDecoder::new_with_options(io::Cursor::new(bytes), options);
     decoder

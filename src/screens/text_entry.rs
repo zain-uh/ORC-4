@@ -12,7 +12,9 @@ use crate::ui::widgets::{hint, status_bar};
 
 use super::nav::{Cx, Nav, Screen};
 
-type OnSubmit = Box<dyn FnOnce(&mut Cx, String)>;
+/// Called with the trimmed text. May return a screen to open in place of
+/// the text entry (e.g. search results).
+type OnSubmit = Box<dyn FnOnce(&mut Cx, String) -> Option<Box<dyn Screen>>>;
 
 const FIELD_H: f32 = 88.0;
 
@@ -30,7 +32,7 @@ impl TextEntry {
         prompt: impl Into<String>,
         initial: impl Into<String>,
         max_chars: usize,
-        on_submit: impl FnOnce(&mut Cx, String) + 'static,
+        on_submit: impl FnOnce(&mut Cx, String) -> Option<Box<dyn Screen>> + 'static,
     ) -> Self {
         Self {
             title: title.into(),
@@ -42,10 +44,13 @@ impl TextEntry {
     }
 
     fn submit(&mut self, cx: &mut Cx) -> Nav {
-        if let Some(f) = self.on_submit.take() {
-            f(cx, self.value.trim().to_string());
+        match self.on_submit.take() {
+            Some(f) => match f(cx, self.value.trim().to_string()) {
+                Some(next) => Nav::Replace(next),
+                None => Nav::Pop,
+            },
+            None => Nav::Pop,
         }
-        Nav::Pop
     }
 }
 
@@ -166,7 +171,8 @@ mod tests {
         let got = Rc::new(RefCell::new(None));
         let sink = Rc::clone(&got);
         let e = TextEntry::new("Name", "Glasses name", "OR", 6, move |_, v| {
-            *sink.borrow_mut() = Some(v)
+            *sink.borrow_mut() = Some(v);
+            None
         });
         (e, got)
     }
@@ -211,7 +217,7 @@ mod tests {
             "Glasses name",
             "My ORC-4",
             32,
-            |_, _| {},
+            |_, _| None,
         );
         let mut c = Canvas::new();
         let (theme, status) = (

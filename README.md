@@ -27,6 +27,19 @@ space = "select"
 
 Debug logging: set `ORC4_LOG=debug`. Settings live in `dev-data/` (git-ignored).
 
+## YouTube
+
+Searching uses the [yt-dlp](https://github.com/yt-dlp/yt-dlp) program. Install it once:
+
+```bash
+winget install yt-dlp.yt-dlp
+```
+
+Then open a new terminal so it is on PATH. Without it, the YouTube app shows
+"YouTube support (yt-dlp) isn't installed" and everything else keeps working.
+Thumbnails download with Windows' built-in `curl.exe` on the dev PC (the
+device uses a Rust HTTPS client).
+
 ## Phone link (dev remote)
 
 The glasses accept a paired phone over WebSocket (protocol in

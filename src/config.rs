@@ -27,6 +27,7 @@ pub struct Settings {
     pub display: DisplaySettings,
     pub input: InputSettings,
     pub phone: PhoneSettings,
+    pub youtube: YoutubeSettings,
     pub simulator: SimulatorSettings,
 }
 
@@ -39,6 +40,7 @@ impl Default for Settings {
             display: DisplaySettings::default(),
             input: InputSettings::default(),
             phone: PhoneSettings::default(),
+            youtube: YoutubeSettings::default(),
             simulator: SimulatorSettings::default(),
         }
     }
@@ -82,6 +84,40 @@ impl Default for DisplaySettings {
 pub enum TvNorm {
     Pal,
     Ntsc,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct YoutubeSettings {
+    /// The yt-dlp program: a name on PATH or a full path.
+    pub ytdlp: String,
+    /// Where thumbnails come from (`<base>/<video id>/mqdefault.jpg`). Can
+    /// point at a privacy proxy.
+    pub thumbnails: String,
+    /// Recent searches, newest first (cleared from the YouTube screen).
+    pub recent: Vec<String>,
+}
+
+impl YoutubeSettings {
+    pub const MAX_RECENT: usize = 8;
+
+    /// Moves `query` to the front, without duplicates (ignoring case).
+    pub fn remember(&mut self, query: &str) {
+        let key = query.to_lowercase();
+        self.recent.retain(|q| q.to_lowercase() != key);
+        self.recent.insert(0, query.to_string());
+        self.recent.truncate(Self::MAX_RECENT);
+    }
+}
+
+impl Default for YoutubeSettings {
+    fn default() -> Self {
+        Self {
+            ytdlp: "yt-dlp".into(),
+            thumbnails: "https://i.ytimg.com/vi".into(),
+            recent: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

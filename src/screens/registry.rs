@@ -7,6 +7,7 @@ use super::files::Folder;
 use super::nav::{Cx, Screen};
 use super::placeholder::Placeholder;
 use super::settings::SettingsHome;
+use super::youtube::YoutubeHome;
 
 pub struct AppEntry {
     pub name: &'static str,
@@ -22,7 +23,7 @@ pub fn apps() -> Vec<AppEntry> {
             name: "YouTube",
             icon: Icon::Play,
             accent: color::YOUTUBE,
-            open: |e, _| Box::new(Placeholder::new(e, "Search and playback arrive in M6.")),
+            open: |_, cx| Box::new(YoutubeHome::new(cx)),
         },
         AppEntry {
             name: "Search",

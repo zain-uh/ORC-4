@@ -37,3 +37,9 @@ opt-level = 3
 
 [profile.dev]
 opt-level = 1
+
+# HTTPS client for the device (thumbnails, later search). The Windows dev PC
+# uses the system curl.exe instead (see services/http.rs), so no Windows
+# build needs a C compiler or dlltool.
+[target.'cfg(not(windows))'.dependencies]
+ureq = { version = "3.4.2", default-features = false, features = ["rustls"] }

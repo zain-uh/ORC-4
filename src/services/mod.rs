@@ -1,24 +1,33 @@
 //! Background work and OS facts. Never touches the UI.
 //!
-//! Slow work (disk, image decoding, text layout, later network) runs as a
-//! job on a worker thread, so the UI thread never blocks. Each job gets a
-//! `Ticket`; its result comes back as `Event::Service`. A screen remembers the
-//! ticket it is waiting for and ignores any other, so results that arrive
-//! after the user moved on are dropped instead of corrupting state.
+//! Slow work runs as a job on a worker thread, so the UI thread never
+//! blocks. Each job gets a `Ticket`; its result comes back as
+//! `Event::Service`. A screen remembers the ticket it is waiting for and
+//! ignores any other, so results that arrive after the user moved on are
+//! dropped instead of corrupting state.
+//!
+//! Two pools: one thread for disk and CPU work (in order), and three for
+//! network work, so a slow search never holds up thumbnails or files.
 
 pub mod clock;
+pub mod http;
 pub mod storage;
 pub mod system;
+pub mod youtube;
 
 use std::cell::Cell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::mpsc::{self, Sender};
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::event::Event;
 use storage::{DirEntry, Image};
+use youtube::Video;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+const NETWORK_THREADS: usize = 3;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Ticket(u64);
 
 #[derive(Debug)]
@@ -26,6 +35,7 @@ pub enum Reply {
     Dir(Vec<DirEntry>),
     Lines(Vec<String>),
     Image(Image),
+    Videos(Vec<Video>),
     Done,
 }
 
@@ -37,6 +47,9 @@ pub enum UserError {
     TooLarge,
     Unsupported,
     Storage,
+    Network,
+    /// A helper program (yt-dlp) isn't installed.
+    MissingTool,
     Internal,
 }
 
@@ -48,6 +61,8 @@ impl UserError {
             Self::TooLarge => "Too large to open",
             Self::Unsupported => "Can't open this type of file",
             Self::Storage => "Storage error",
+            Self::Network => "Can't reach the internet",
+            Self::MissingTool => "YouTube support (yt-dlp) isn't installed",
             Self::Internal => "Something went wrong",
         }
     }
@@ -62,21 +77,56 @@ pub struct ServiceEvent {
 }
 
 type Job = Box<dyn FnOnce() -> JobResult + Send>;
+type Queue = Sender<(Ticket, Job)>;
 
 /// Handle used by screens (UI thread only) to queue background work.
 pub struct Services {
-    jobs: Sender<(Ticket, Job)>,
+    disk: Queue,
+    net: Queue,
     next: Cell<u64>,
 }
 
 impl Services {
-    /// Starts the worker thread. Jobs run one at a time, in order.
     pub fn start(events: Sender<Event>) -> Self {
-        let (jobs, inbox) = mpsc::channel::<(Ticket, Job)>();
+        Self {
+            disk: spawn_pool("worker", 1, events.clone()),
+            net: spawn_pool("net", NETWORK_THREADS, events),
+            next: Cell::new(1),
+        }
+    }
+
+    /// Disk or CPU work (file listing, decoding, text layout). Runs in order.
+    pub fn run(&self, job: impl FnOnce() -> JobResult + Send + 'static) -> Ticket {
+        self.queue(&self.disk, Box::new(job))
+    }
+
+    /// Network work (searches, downloads). Several run at once.
+    pub fn run_net(&self, job: impl FnOnce() -> JobResult + Send + 'static) -> Ticket {
+        self.queue(&self.net, Box::new(job))
+    }
+
+    fn queue(&self, queue: &Queue, job: Job) -> Ticket {
+        let ticket = Ticket(self.next.get());
+        self.next.set(ticket.0 + 1);
+        if queue.send((ticket, job)).is_err() {
+            log::error!("worker threads are gone; job {ticket:?} dropped");
+        }
+        ticket
+    }
+}
+
+fn spawn_pool(name: &str, threads: usize, events: Sender<Event>) -> Queue {
+    let (queue, inbox) = mpsc::channel::<(Ticket, Job)>();
+    let inbox: Arc<Mutex<Receiver<(Ticket, Job)>>> = Arc::new(Mutex::new(inbox));
+    for i in 0..threads {
+        let (inbox, events) = (Arc::clone(&inbox), events.clone());
         thread::Builder::new()
-            .name("worker".into())
+            .name(format!("{name}-{i}"))
             .spawn(move || {
-                for (ticket, job) in inbox {
+                loop {
+                    // Hold the lock only while taking the next job.
+                    let next = inbox.lock().ok().and_then(|rx| rx.recv().ok());
+                    let Some((ticket, job)) = next else { break };
                     // A panicking job must not kill the worker for everyone.
                     let result = catch_unwind(AssertUnwindSafe(job)).unwrap_or_else(|_| {
                         log::error!("job {ticket:?} panicked");
@@ -91,20 +141,8 @@ impl Services {
                 }
             })
             .expect("spawn worker thread");
-        Self {
-            jobs,
-            next: Cell::new(1),
-        }
     }
-
-    pub fn run(&self, job: impl FnOnce() -> JobResult + Send + 'static) -> Ticket {
-        let ticket = Ticket(self.next.get());
-        self.next.set(ticket.0 + 1);
-        if self.jobs.send((ticket, Box::new(job))).is_err() {
-            log::error!("worker thread is gone; job {ticket:?} dropped");
-        }
-        ticket
-    }
+    queue
 }
 
 #[cfg(test)]

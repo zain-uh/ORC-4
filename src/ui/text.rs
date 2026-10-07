@@ -201,6 +201,18 @@ impl Fonts {
 }
 
 impl Fonts {
+    /// `text` without characters `font` has no glyph for (emoji, most CJK),
+    /// which would otherwise show as empty boxes. Runs of spaces left behind
+    /// are collapsed.
+    pub fn printable(&self, font: FontId, text: &str) -> String {
+        let f = self.font(font);
+        let kept: String = text
+            .chars()
+            .filter(|&c| c == ' ' || f.lookup_glyph_index(c) != 0)
+            .collect();
+        kept.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
     /// Wraps a whole document: each source line is wrapped on its own and
     /// blank lines are kept, so paragraphs stay visible. Can be slow for
     /// large files; run it on the worker.
@@ -302,6 +314,19 @@ mod tests {
 
         let all = f.wrap(BODY, text, 420.0, 10);
         assert_eq!(all.join(" "), text, "nothing lost when lines suffice");
+    }
+
+    #[test]
+    fn printable_drops_glyphs_the_font_lacks() {
+        let f = fonts();
+        assert_eq!(
+            f.printable(FontId::Sans, "Best \u{1F525} cats \u{1F431}\u{1F431} ever"),
+            "Best cats ever"
+        );
+        assert_eq!(
+            f.printable(FontId::Sans, "Ça va — très bien"),
+            "Ça va — très bien"
+        );
     }
 
     #[test]

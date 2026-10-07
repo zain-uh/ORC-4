@@ -10,3 +10,4 @@ pub mod registry;
 pub mod settings;
 pub mod text_entry;
 pub mod text_viewer;
+pub mod youtube;

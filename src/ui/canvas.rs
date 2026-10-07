@@ -1,6 +1,6 @@
 use tiny_skia::{
-    Color, ColorU8, FillRule, LineCap, Paint, Path, PathBuilder, Pixmap, PixmapPaint,
-    PremultipliedColorU8, Rect, Stroke, Transform,
+    Color, ColorU8, FillRule, FilterQuality, LineCap, Paint, Path, PathBuilder, Pixmap,
+    PixmapPaint, PremultipliedColorU8, Rect, Stroke, Transform,
 };
 
 use super::text::{Align, Glyph, GlyphCache, TextStyle, fonts};
@@ -93,6 +93,33 @@ impl Canvas {
             image.as_ref(),
             &PixmapPaint::default(),
             Transform::identity(),
+            None,
+        );
+    }
+
+    /// Draws an image stretched to `w`×`h` at (x, y), with smoothing.
+    #[allow(clippy::too_many_arguments)]
+    pub fn draw_image_scaled(
+        &mut self,
+        image: &Pixmap,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        opacity: f32,
+    ) {
+        let (sx, sy) = (w / image.width() as f32, h / image.height() as f32);
+        let paint = PixmapPaint {
+            opacity: opacity.clamp(0.0, 1.0),
+            quality: FilterQuality::Bilinear,
+            ..PixmapPaint::default()
+        };
+        self.pixmap.draw_pixmap(
+            0,
+            0,
+            image.as_ref(),
+            &paint,
+            Transform::from_row(sx, 0.0, 0.0, sy, x, y),
             None,
         );
     }

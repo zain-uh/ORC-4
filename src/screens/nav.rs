@@ -116,6 +116,9 @@ pub enum Nav {
     /// Not handled; apply the navigator's default for this action.
     Unhandled,
     Push(Box<dyn Screen>),
+    /// Close this screen and open another in its place (e.g. a search box
+    /// replaced by its results, so Back skips the search box).
+    Replace(Box<dyn Screen>),
     Pop,
     Home,
 }
@@ -309,6 +312,11 @@ impl Navigator {
             Nav::Push(screen) => {
                 self.stack.push(screen);
                 self.begin(Outgoing::Below, cx);
+            }
+            Nav::Replace(screen) => {
+                let old = self.stack.pop().expect("root is never popped");
+                self.stack.push(screen);
+                self.begin(Outgoing::Popped(old), cx);
             }
             Nav::Pop | Nav::Home if self.stack.len() == 1 => return false,
             Nav::Pop => {

@@ -90,9 +90,9 @@ mod tests {
 
     #[test]
     fn snapshot_placeholder() {
-        let youtube = apps().into_iter().find(|a| a.name == "YouTube").unwrap();
+        let search = apps().into_iter().find(|a| a.name == "Search").unwrap();
         let mut h = Harness::new();
-        let screen = (youtube.open)(&youtube, &mut h.cx(std::time::Instant::now()));
+        let screen = (search.open)(&search, &mut h.cx(std::time::Instant::now()));
         let mut c = Canvas::new();
         let theme = Theme::default();
         let status = Status {
@@ -105,6 +105,6 @@ mod tests {
                 status: &status,
             },
         );
-        assert_snapshot("placeholder-youtube", &c);
+        assert_snapshot("placeholder-search", &c);
     }
 }

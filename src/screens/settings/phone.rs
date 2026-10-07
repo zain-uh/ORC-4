@@ -84,6 +84,7 @@ impl Screen for PhonePage {
                     if !name.is_empty() {
                         cx.settings.phone.name = name;
                     }
+                    None
                 },
             ))),
             3 => {
