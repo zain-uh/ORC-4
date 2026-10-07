@@ -10,7 +10,7 @@ use super::Display;
 use super::composite::CompositePreview;
 use crate::app::action::{InputEvent, SourceKind};
 use crate::app::event::Event;
-use crate::config::SimulatorSettings;
+use crate::config::Settings;
 use crate::input::keymap::{Key, Keymap};
 use crate::ui::canvas::{Canvas, HEIGHT, WIDTH};
 
@@ -36,7 +36,9 @@ pub struct WindowDisplay {
 }
 
 impl WindowDisplay {
-    pub fn new(settings: &SimulatorSettings) -> anyhow::Result<Self> {
+    pub fn new(settings: &Settings) -> anyhow::Result<Self> {
+        let keymap = Keymap::with_overrides(&settings.input.keys);
+        let settings = &settings.simulator;
         let scale = match settings.scale {
             2 => Scale::X2,
             4 => Scale::X4,
@@ -64,7 +66,7 @@ impl WindowDisplay {
             preview: CompositePreview::default(),
             preview_on: settings.composite_preview,
             toggle_preview: false,
-            keymap: Keymap::default(),
+            keymap,
             pending: Vec::new(),
             polled_by_present: false,
         };
@@ -162,6 +164,7 @@ fn map_key(key: MfKey) -> Option<Key> {
         MfKey::Backspace => Key::Backspace,
         MfKey::Home => Key::Home,
         MfKey::Tab => Key::Tab,
+        MfKey::Space => Key::Space,
         _ => return None,
     })
 }

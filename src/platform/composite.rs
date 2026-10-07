@@ -137,31 +137,32 @@ mod tests {
     }
 }
 
-/// Not a pass/fail check: writes the gallery as the composite display would
-/// roughly show it, to `target/snapshots/gallery-composite.png`, for review.
+/// Not a pass/fail check: writes the launcher as the composite display would
+/// roughly show it, to `target/snapshots/launcher-composite.png`, for review.
 #[cfg(test)]
 mod review {
     use std::path::PathBuf;
     use std::time::Instant;
 
     use super::CompositePreview;
-    use crate::screens::gallery::Gallery;
+    use crate::screens::launcher::Launcher;
     use crate::ui::DrawCx;
     use crate::ui::canvas::{Canvas, HEIGHT, WIDTH};
+    use crate::ui::nav::Screen;
     use crate::ui::snapshot::write_png;
     use crate::ui::theme::Theme;
     use crate::ui::widgets::status_bar::Status;
 
     #[test]
-    fn render_gallery_through_composite_preview() {
+    fn render_launcher_through_composite_preview() {
         let mut canvas = Canvas::new();
         let theme = Theme::default();
         let status = Status {
             clock: Some((14, 32)),
         };
-        let mut gallery = Gallery::new();
-        gallery.animate(Instant::now());
-        gallery.draw(
+        let mut launcher = Launcher::new();
+        launcher.animate(Instant::now());
+        launcher.draw(
             &mut canvas,
             &DrawCx {
                 theme: &theme,
@@ -183,7 +184,7 @@ mod review {
             .flat_map(|px| [(px >> 16) as u8, (px >> 8) as u8, *px as u8, 0xFF])
             .collect();
         let out = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("target/snapshots/gallery-composite.png");
+            .join("target/snapshots/launcher-composite.png");
         write_png(&out, WIDTH, HEIGHT, &rgba);
     }
 }

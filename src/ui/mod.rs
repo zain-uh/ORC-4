@@ -1,6 +1,8 @@
 //! Rendering toolkit. Knows pixels, not hardware.
 
 pub mod canvas;
+pub mod icons;
+pub mod nav;
 #[cfg(test)]
 pub mod snapshot;
 pub mod text;

@@ -63,6 +63,10 @@ pub mod motion {
 
     pub const PANEL: Duration = Duration::from_millis(220);
     pub const FOCUS: Duration = Duration::from_millis(120);
+    /// Whole-screen dip to black between screens (push/pop).
+    pub const SCREEN: Duration = Duration::from_millis(200);
+    /// Nudge when trying to scroll past the first or last panel.
+    pub const BUMP: Duration = Duration::from_millis(180);
 }
 
 /// Edge insets the board's analog overscan may crop.

@@ -86,13 +86,13 @@ ORC-4/
 │   ├── app/                   ── pure logic: no I/O, no hardware, unit-testable
 │   │   ├── action.rs          Action, InputEvent
 │   │   ├── event.rs           Event (Input | Service | Tick)
-│   │   ├── nav.rs             Screen trait, Navigator (screen stack)
-│   │   └── anim.rs            Tween, easing, Clock
+│   │   └── anim.rs            Tween, easing
 │   ├── ui/                    ── drawing toolkit; knows pixels, not hardware
 │   │   ├── canvas.rs          Canvas = 960×540 Pixmap + helpers
 │   │   ├── text.rs            embedded fonts, glyph cache, wrap/ellipsis
 │   │   ├── theme.rs           colours, type scale, spacing, safe area, motion
-│   │   ├── icons.rs           embedded icon bitmaps
+│   │   ├── icons.rs           vector app icons (play, search, folder, gear)
+│   │   ├── nav.rs             Screen trait, Navigator (screen stack); in ui/ because it draws transitions
 │   │   └── widgets/           status_bar, list, grid, card, toast, spinner, osk
 │   ├── screens/               ── the "apps"; each implements Screen
 │   │   ├── registry.rs        AppEntry list → launcher panels

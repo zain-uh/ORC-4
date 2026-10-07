@@ -31,7 +31,7 @@ pub trait Display {
 pub fn open(settings: &Settings) -> anyhow::Result<Box<dyn Display>> {
     #[cfg(feature = "simulator")]
     {
-        Ok(Box::new(window::WindowDisplay::new(&settings.simulator)?))
+        Ok(Box::new(window::WindowDisplay::new(settings)?))
     }
     #[cfg(not(feature = "simulator"))]
     {

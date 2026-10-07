@@ -7,10 +7,11 @@ use std::time::Instant;
 use crate::app::event::Event;
 use crate::config::Settings;
 use crate::platform::Display;
-use crate::screens::gallery::{Flow, Gallery};
+use crate::screens::launcher::Launcher;
 use crate::services::clock;
 use crate::ui::DrawCx;
 use crate::ui::canvas::Canvas;
+use crate::ui::nav::Navigator;
 use crate::ui::theme::Theme;
 use crate::ui::widgets::status_bar::Status;
 
@@ -28,7 +29,7 @@ pub fn run(
     let mut status = Status {
         clock: clock::local_hhmm(utc_offset),
     };
-    let mut screen = Gallery::new();
+    let mut screens = Navigator::new(Box::new(Launcher::new()));
     let mut canvas = Canvas::new();
     let mut dirty = true;
     let mut first_frame = true;
@@ -60,10 +61,8 @@ pub fn run(
                         input.repeat,
                         input.source
                     );
-                    match screen.handle(input.action, Instant::now()) {
-                        Flow::Stay => {}
-                        Flow::Redraw => dirty = true,
-                        Flow::Quit => return Ok(()),
+                    if screens.handle(input.action, Instant::now()) {
+                        dirty = true;
                     }
                 }
             }
@@ -74,7 +73,7 @@ pub fn run(
             status.clock = now_clock;
             dirty = true;
         }
-        if screen.animate(Instant::now()) {
+        if screens.animate(Instant::now()) {
             dirty = true;
         }
 
@@ -83,7 +82,7 @@ pub fn run(
                 theme: &theme,
                 status: &status,
             };
-            screen.draw(&mut canvas, &cx);
+            screens.draw(&mut canvas, &cx);
             display.present(&canvas)?;
             dirty = false;
             if first_frame {

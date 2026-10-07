@@ -8,6 +8,7 @@
 //! A layer that fails to parse is skipped with a warning, so a bad file can
 //! never stop the device from booting. A corrupt user file is moved aside.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
@@ -23,6 +24,7 @@ pub struct Settings {
     /// error | warn | info | debug | trace. `ORC4_LOG` overrides it.
     pub log_level: String,
     pub clock: ClockSettings,
+    pub input: InputSettings,
     pub simulator: SimulatorSettings,
 }
 
@@ -32,9 +34,18 @@ impl Default for Settings {
             version: 1,
             log_level: "info".into(),
             clock: ClockSettings::default(),
+            input: InputSettings::default(),
             simulator: SimulatorSettings::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct InputSettings {
+    /// Key name -> action name overrides, e.g. `space = "select"`. See
+    /// `input::keymap` for the names. Lenient: unknown names are skipped.
+    pub keys: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

@@ -1,6 +1,6 @@
 use tiny_skia::{
-    Color, ColorU8, FillRule, Paint, Path, PathBuilder, Pixmap, PremultipliedColorU8, Stroke,
-    Transform,
+    Color, ColorU8, FillRule, LineCap, Paint, Path, PathBuilder, Pixmap, PremultipliedColorU8,
+    Rect, Stroke, Transform,
 };
 
 use super::text::{Align, Glyph, GlyphCache, TextStyle, fonts};
@@ -33,6 +33,50 @@ impl Canvas {
         self.pixmap.fill(color);
     }
 
+    pub fn fill_rect(&mut self, x: f32, y: f32, w: f32, h: f32, color: Color) {
+        if let Some(rect) = Rect::from_xywh(x, y, w, h) {
+            self.pixmap
+                .fill_rect(rect, &paint(color), Transform::identity(), None);
+        }
+    }
+
+    pub fn fill_circle(&mut self, cx: f32, cy: f32, r: f32, color: Color) {
+        if let Some(path) = PathBuilder::from_circle(cx, cy, r) {
+            self.fill_path(&path, color);
+        }
+    }
+
+    pub fn stroke_circle(&mut self, cx: f32, cy: f32, r: f32, width: f32, color: Color) {
+        if let Some(path) = PathBuilder::from_circle(cx, cy, r) {
+            self.stroke_path(&path, width, LineCap::Butt, color);
+        }
+    }
+
+    /// Straight line with rounded ends.
+    pub fn stroke_line(&mut self, from: (f32, f32), to: (f32, f32), width: f32, color: Color) {
+        let mut pb = PathBuilder::new();
+        pb.move_to(from.0, from.1);
+        pb.line_to(to.0, to.1);
+        if let Some(path) = pb.finish() {
+            self.stroke_path(&path, width, LineCap::Round, color);
+        }
+    }
+
+    pub fn fill_polygon(&mut self, points: &[(f32, f32)], color: Color) {
+        let mut pb = PathBuilder::new();
+        for (i, &(x, y)) in points.iter().enumerate() {
+            if i == 0 {
+                pb.move_to(x, y);
+            } else {
+                pb.line_to(x, y);
+            }
+        }
+        pb.close();
+        if let Some(path) = pb.finish() {
+            self.fill_path(&path, color);
+        }
+    }
+
     pub fn fill_rounded_rect(&mut self, x: f32, y: f32, w: f32, h: f32, r: f32, color: Color) {
         if let Some(path) = rounded_rect(x, y, w, h, r) {
             self.fill_path(&path, color);
@@ -40,6 +84,7 @@ impl Canvas {
     }
 
     /// Outline centred on the rectangle's edge.
+    #[allow(dead_code)] // next caller: focus ring on list rows (M4)
     #[allow(clippy::too_many_arguments)]
     pub fn stroke_rounded_rect(
         &mut self,
@@ -52,13 +97,18 @@ impl Canvas {
         color: Color,
     ) {
         if let Some(path) = rounded_rect(x, y, w, h, r) {
-            let stroke = Stroke {
-                width,
-                ..Stroke::default()
-            };
-            self.pixmap
-                .stroke_path(&path, &paint(color), &stroke, Transform::identity(), None);
+            self.stroke_path(&path, width, LineCap::Butt, color);
         }
+    }
+
+    fn stroke_path(&mut self, path: &Path, width: f32, line_cap: LineCap, color: Color) {
+        let stroke = Stroke {
+            width,
+            line_cap,
+            ..Stroke::default()
+        };
+        self.pixmap
+            .stroke_path(path, &paint(color), &stroke, Transform::identity(), None);
     }
 
     pub fn fill_path(&mut self, path: &Path, color: Color) {

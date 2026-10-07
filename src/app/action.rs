@@ -19,6 +19,23 @@ pub enum Action {
     Menu,
 }
 
+impl Action {
+    /// Parses the names used in config files and (later) the phone protocol.
+    pub fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "up" => Self::Up,
+            "down" => Self::Down,
+            "left" => Self::Left,
+            "right" => Self::Right,
+            "select" => Self::Select,
+            "back" => Self::Back,
+            "home" => Self::Home,
+            "menu" => Self::Menu,
+            _ => return None,
+        })
+    }
+}
+
 /// Where an action came from. For logging and diagnostics only: screens must
 /// not change behaviour based on the source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

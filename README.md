@@ -13,8 +13,17 @@ reference in [`prototype/`](prototype/).
 cargo run
 ```
 
-Opens a 960×540 window. Controls: arrow keys, Enter = select, Esc = back,
-Home = home, Tab = menu.
+Opens a 960×540 window. Controls: ←/→ = move, Enter = open/select,
+Esc = back, Home = back to launcher, Tab = menu, F2 = composite-video preview.
+Close the window to quit (Back on the home screen does nothing, as on the
+glasses).
+
+Key bindings can be changed in `dev-data/settings.toml`:
+
+```toml
+[input.keys]
+space = "select"
+```
 
 Debug logging: set `ORC4_LOG=debug`. Settings live in `dev-data/` (git-ignored).
 
