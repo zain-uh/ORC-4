@@ -58,6 +58,17 @@ In the simulator mpv opens its own window; on the glasses it takes over the
 display. Controls: Enter pause, ←/→ seek 10 s, ↑/↓ volume, Tab audio only,
 Esc stop.
 
+## Network
+
+The status bar shows Wi-Fi signal, or "Offline" / "Sign-in needed". Internet
+access is checked every 30 s (10 s while offline) against
+`[network] probe_url`; set it to `""` to turn checking off.
+
+In the simulator, Wi-Fi itself is **simulated** (Settings › Network says so):
+"ORC Test" takes the password `orc4test`, "Cafe" is open, others fail. The real
+Wi-Fi backend (iwd) arrives with the Pi image (M8b). Text fields have an
+on-screen keyboard: press ↓ from the field.
+
 ## Phone link (dev remote)
 
 The glasses accept a paired phone over WebSocket (protocol in

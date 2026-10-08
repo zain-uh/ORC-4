@@ -103,3 +103,34 @@ pub fn draw(c: &mut Canvas, icon: Icon, cx: f32, cy: f32, size: f32, color: Colo
         }
     }
 }
+
+/// Wi-Fi fan: a dot and three arcs, lit from the inside out by `bars`
+/// (0–4; 4 lights all three arcs). Unlit arcs are drawn dim, so the shape
+/// is always recognisable.
+pub fn wifi(c: &mut Canvas, cx: f32, cy: f32, size: f32, bars: u8) {
+    use std::f32::consts::FRAC_PI_4;
+
+    use super::canvas::rgb;
+    use super::theme::color;
+
+    let base_y = cy + 0.38 * size;
+    let lit = (bars.min(4) as usize * 3).div_ceil(4);
+    let stroke = (0.1 * size).max(2.0);
+    c.fill_circle(cx, base_y - 0.04 * size, 0.07 * size, rgb(color::TEXT));
+    for arc in 0..3 {
+        let r = (0.28 + 0.24 * arc as f32) * size;
+        let points: Vec<(f32, f32)> = (0..=10)
+            .map(|i| {
+                // From -45° to +45° around straight up.
+                let a = -FRAC_PI_4 + i as f32 * (2.0 * FRAC_PI_4) / 10.0;
+                (cx + r * a.sin(), base_y - r * a.cos())
+            })
+            .collect();
+        let colour = if arc < lit {
+            color::TEXT
+        } else {
+            color::TEXT_DISABLED
+        };
+        c.stroke_polyline(&points, stroke, rgb(colour));
+    }
+}

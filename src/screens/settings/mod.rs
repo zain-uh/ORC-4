@@ -1,12 +1,12 @@
 //! Settings app (offline). Sections are pushed as their own screens; changes
 //! go straight into `cx.settings` and the runtime saves them shortly after.
 //!
-//! Bluetooth, Network and Sound sections arrive with their services
-//! (M7, M8).
+//! Bluetooth and Sound sections arrive with Bluetooth (M7b).
 
 mod calibrate;
 mod device;
 mod display;
+mod network;
 mod phone;
 mod system;
 
@@ -24,7 +24,7 @@ use crate::ui::widgets::{hint, status_bar};
 use super::nav::{Cx, Nav, Screen};
 use super::text_viewer::TextViewer;
 
-const SECTIONS: [&str; 5] = ["Display", "Phone", "Device", "Logs", "System"];
+const SECTIONS: [&str; 6] = ["Display", "Network", "Phone", "Device", "Logs", "System"];
 
 pub struct SettingsHome {
     list: ListView,
@@ -48,9 +48,10 @@ impl Screen for SettingsHome {
         }
         Nav::Push(match self.list.focus() {
             0 => Box::new(display::DisplayPage::new(cx)),
-            1 => Box::new(phone::PhonePage::new(cx)),
-            2 => Box::new(device::DevicePage::new()),
-            3 => {
+            1 => Box::new(network::NetworkPage::new()),
+            2 => Box::new(phone::PhonePage::new(cx)),
+            3 => Box::new(device::DevicePage::new()),
+            4 => {
                 let style = typography::NUMERIC;
                 let (_, _, width, _) = cx.theme().content();
                 let lines = logging::recent()
@@ -96,6 +97,7 @@ mod tests {
         let theme = Theme::default();
         let status = Status {
             clock: Some((14, 32)),
+            ..Status::default()
         };
         screen.draw(
             &mut c,

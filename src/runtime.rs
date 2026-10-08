@@ -13,16 +13,64 @@ use crate::input::remote::server;
 use crate::platform::Display;
 use crate::screens::launcher::Launcher;
 use crate::screens::nav::{Cx, Navigator};
+use crate::services::network::{self, Internet, NetInfo};
 use crate::services::player::PlayerEvent;
-use crate::services::{ServiceEvent, Services, clock};
+use crate::services::{Reply, ServiceEvent, Services, Ticket, clock};
 use crate::ui::DrawCx;
 use crate::ui::canvas::Canvas;
 use crate::ui::theme::Theme;
-use crate::ui::widgets::status_bar::Status;
+use crate::ui::widgets::status_bar::{Connection, Status};
 
 /// Settings are written this long after they first change, so holding an
 /// arrow key in the calibration screen doesn't hammer the SD card.
 const SAVE_DELAY: Duration = Duration::from_secs(1);
+
+/// How often internet access is re-checked.
+const NET_CHECK_ONLINE: Duration = Duration::from_secs(30);
+const NET_CHECK_OFFLINE: Duration = Duration::from_secs(10);
+
+/// Runs the internet check on a timer, one at a time.
+struct NetMonitor {
+    next: Instant,
+    pending: Option<Ticket>,
+}
+
+impl NetMonitor {
+    fn start_if_due(&mut self, now: Instant, services: &Services, probe_url: &str) {
+        if self.pending.is_none() && now >= self.next {
+            let url = probe_url.to_string();
+            self.pending = Some(services.run_net(move || Ok(Reply::Network(network::check(&url)))));
+        }
+    }
+
+    /// Takes the result of our check; anything else is handed back.
+    fn take(&mut self, event: ServiceEvent, now: Instant) -> Result<NetInfo, ServiceEvent> {
+        if self.pending != Some(event.ticket) {
+            return Err(event);
+        }
+        self.pending = None;
+        let info = match event.result {
+            Ok(Reply::Network(info)) => info,
+            _ => NetInfo::default(),
+        };
+        self.next = now
+            + if info.internet == Internet::Online {
+                NET_CHECK_ONLINE
+            } else {
+                NET_CHECK_OFFLINE
+            };
+        Ok(info)
+    }
+}
+
+fn connection(info: &NetInfo) -> Connection {
+    match info.internet {
+        Internet::Unknown => Connection::Unknown,
+        Internet::Online => Connection::Online,
+        Internet::SignIn => Connection::SignIn,
+        Internet::Offline => Connection::Offline,
+    }
+}
 
 /// One unit of work for the screens, whatever its source.
 enum Step {
@@ -54,6 +102,11 @@ pub fn run(
     let mut save_due: Option<Instant> = None;
     let mut status = Status {
         clock: clock::local_hhmm(settings.clock.utc_offset_minutes),
+        ..Status::default()
+    };
+    let mut net = NetMonitor {
+        next: Instant::now(),
+        pending: None,
     };
     let mut screens = Navigator::new(Box::new(Launcher::new()));
     screens.start(&mut Cx::new(
@@ -82,6 +135,9 @@ pub fn run(
             if let Some(due) = save_due {
                 wait = wait.min(due.saturating_duration_since(Instant::now()));
             }
+            if net.pending.is_none() {
+                wait = wait.min(net.next.saturating_duration_since(Instant::now()));
+            }
             rx.recv_timeout(wait).ok()
         };
 
@@ -106,7 +162,23 @@ pub fn run(
                     vec![Step::Action(input.action)]
                 }
                 Event::Text(edit) => vec![Step::Text(edit)],
-                Event::Service(result) => vec![Step::Service(result)],
+                Event::Service(result) => match net.take(result, now) {
+                    Ok(info) => {
+                        let new = (connection(&info), info.signal, info.ssid.clone());
+                        let old = (
+                            status.connection,
+                            status.wifi_bars,
+                            status.wifi_name.clone(),
+                        );
+                        if new != old {
+                            log::info!("network: {:?} {:?}", info.internet, info.ssid);
+                            (status.connection, status.wifi_bars, status.wifi_name) = new;
+                            dirty = true;
+                        }
+                        Vec::new()
+                    }
+                    Err(result) => vec![Step::Service(result)],
+                },
                 Event::Player(event) => vec![Step::Player(event)],
                 // Phone traffic becomes the same steps a keyboard produces.
                 Event::Remote(remote) => {
@@ -140,6 +212,9 @@ pub fn run(
                     Step::Player(event) => screens.player(&event, &mut cx),
                 };
             }
+            if cx.network_check_requested() {
+                net.next = now;
+            }
             if cx.exit_requested() {
                 log::info!("exit requested");
                 save_if_changed(paths, &settings, &mut saved);
@@ -153,6 +228,7 @@ pub fn run(
         link.set_text_request(screens.text_request());
 
         let now = Instant::now();
+        net.start_if_due(now, &services, &settings.network.probe_url);
         if settings != saved {
             // Changes come from input, which already marked the frame dirty.
             let due = *save_due.get_or_insert(now + SAVE_DELAY);

@@ -18,7 +18,7 @@ use crate::app::anim::{Ease, Tween};
 use crate::screens::nav::{Cx, Nav, Screen};
 use crate::screens::player::{Media, PlayerScreen};
 use crate::services::youtube::{self, MAX_THUMBNAIL_BYTES, Video};
-use crate::services::{Reply, ServiceEvent, Ticket, UserError, http, storage};
+use crate::services::{JobResult, Reply, ServiceEvent, Ticket, UserError, http, storage};
 use crate::ui::DrawCx;
 use crate::ui::canvas::{Canvas, WIDTH, rgb, rgba};
 use crate::ui::icons::{self, Icon};
@@ -49,6 +49,9 @@ pub struct Results {
     query: String,
     ytdlp: String,
     thumbnail_base: String,
+    /// Downloads and decodes one thumbnail (replaced in tests, so they
+    /// never start downloads).
+    fetch_thumbnail: fn(&str) -> JobResult,
     videos: Vec<Video>,
     thumbs: HashMap<String, Thumb>,
     thumb_tickets: HashMap<Ticket, String>,
@@ -71,6 +74,7 @@ impl Results {
             query,
             ytdlp: cx.settings.youtube.ytdlp.clone(),
             thumbnail_base: cx.settings.youtube.thumbnails.clone(),
+            fetch_thumbnail: download_thumbnail,
             videos: Vec::new(),
             thumbs: HashMap::new(),
             thumb_tickets: HashMap::new(),
@@ -111,11 +115,11 @@ impl Results {
             self.exhausted = true;
         }
         for video in &fresh {
-            let url = video.thumbnail_url(&self.thumbnail_base);
-            let ticket = cx.services.run_net(move || {
-                let bytes = http::get(&url, MAX_THUMBNAIL_BYTES)?;
-                storage::decode_image(&bytes, THUMB_W as u32, THUMB_H as u32).map(Reply::Image)
-            });
+            let (url, fetch) = (
+                video.thumbnail_url(&self.thumbnail_base),
+                self.fetch_thumbnail,
+            );
+            let ticket = cx.services.run_net(move || fetch(&url));
             self.thumbs.insert(video.id.clone(), Thumb::Loading);
             self.thumb_tickets.insert(ticket, video.id.clone());
         }
@@ -141,6 +145,11 @@ impl Results {
             self.load_more(cx);
         }
     }
+}
+
+fn download_thumbnail(url: &str) -> JobResult {
+    let bytes = http::get(url, MAX_THUMBNAIL_BYTES)?;
+    storage::decode_image(&bytes, THUMB_W as u32, THUMB_H as u32).map(Reply::Image)
 }
 
 impl Screen for Results {
@@ -338,10 +347,9 @@ mod tests {
     /// program is fake, so only the injected reply matters).
     fn results_with(h: &mut Harness, n: usize) -> Results {
         h.settings.youtube.ytdlp = "not-a-real-yt-dlp".into();
-        // Nothing listens on port 9 locally: thumbnail jobs fail at once,
-        // without touching the internet.
-        h.settings.youtube.thumbnails = "http://127.0.0.1:9".into();
         let mut r = Results::new("smart glasses".into(), &mut h.cx(Instant::now()));
+        // Thumbnail jobs fail at once instead of downloading anything.
+        r.fetch_thumbnail = |_| Err(UserError::Network);
         let ticket = r.search.expect("search started");
         let found = (0..n).map(video).collect();
         let event = ServiceEvent {
@@ -434,6 +442,7 @@ mod tests {
             Theme::default(),
             Status {
                 clock: Some((14, 32)),
+                ..Status::default()
             },
         );
         r.draw(

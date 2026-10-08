@@ -11,6 +11,7 @@
 
 pub mod clock;
 pub mod http;
+pub mod network;
 pub mod player;
 pub mod storage;
 pub mod system;
@@ -23,6 +24,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::event::Event;
+use network::{NetInfo, WifiNetwork};
 use player::{PlayOptions, Player};
 use storage::{DirEntry, Image};
 use youtube::Video;
@@ -38,6 +40,8 @@ pub enum Reply {
     Lines(Vec<String>),
     Image(Image),
     Videos(Vec<Video>),
+    Network(NetInfo),
+    Networks(Vec<WifiNetwork>),
     Done,
 }
 
@@ -54,6 +58,7 @@ pub enum UserError {
     MissingTool,
     /// The player couldn't play the file or stream.
     Playback,
+    WrongPassword,
     Internal,
 }
 
@@ -68,6 +73,7 @@ impl UserError {
             Self::Network => "Can't reach the internet",
             Self::MissingTool => "Video support isn't installed",
             Self::Playback => "Couldn't play this",
+            Self::WrongPassword => "Wrong password",
             Self::Internal => "Something went wrong",
         }
     }

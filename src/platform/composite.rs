@@ -159,6 +159,7 @@ mod review {
         let theme = Theme::default();
         let status = Status {
             clock: Some((14, 32)),
+            ..Status::default()
         };
         let mut launcher = Launcher::new();
         launcher.animate(Instant::now());

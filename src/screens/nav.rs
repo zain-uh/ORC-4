@@ -23,6 +23,7 @@ pub struct Cx<'a> {
     pub link: &'a mut PhoneLink,
     toast: Option<String>,
     exit: bool,
+    check_network: bool,
 }
 
 impl<'a> Cx<'a> {
@@ -41,6 +42,7 @@ impl<'a> Cx<'a> {
             link,
             toast: None,
             exit: false,
+            check_network: false,
         }
     }
 
@@ -56,6 +58,15 @@ impl<'a> Cx<'a> {
 
     pub fn exit_requested(&self) -> bool {
         self.exit
+    }
+
+    /// Re-checks internet access now (e.g. after joining a network).
+    pub fn check_network(&mut self) {
+        self.check_network = true;
+    }
+
+    pub fn network_check_requested(&self) -> bool {
+        self.check_network
     }
 
     /// Theme for the current settings, for layout decisions made before drawing.

@@ -97,6 +97,7 @@ mod tests {
         let theme = Theme::default();
         let status = Status {
             clock: Some((14, 32)),
+            ..Status::default()
         };
         screen.draw(
             &mut c,

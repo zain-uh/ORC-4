@@ -29,6 +29,7 @@ pub struct Settings {
     pub phone: PhoneSettings,
     pub youtube: YoutubeSettings,
     pub player: PlayerSettings,
+    pub network: NetworkSettings,
     pub simulator: SimulatorSettings,
 }
 
@@ -43,6 +44,7 @@ impl Default for Settings {
             phone: PhoneSettings::default(),
             youtube: YoutubeSettings::default(),
             player: PlayerSettings::default(),
+            network: NetworkSettings::default(),
             simulator: SimulatorSettings::default(),
         }
     }
@@ -86,6 +88,23 @@ impl Default for DisplaySettings {
 pub enum TvNorm {
     Pal,
     Ntsc,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NetworkSettings {
+    /// Page used to check for internet access: it must answer
+    /// "204 No Content". Each check contacts this server, so it is
+    /// configurable; empty turns checking off.
+    pub probe_url: String,
+}
+
+impl Default for NetworkSettings {
+    fn default() -> Self {
+        Self {
+            probe_url: "http://connectivitycheck.gstatic.com/generate_204".into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

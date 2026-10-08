@@ -336,6 +336,7 @@ mod tests {
             Theme::default(),
             Status {
                 clock: Some((14, 32)),
+                ..Status::default()
             },
         );
         s.draw(

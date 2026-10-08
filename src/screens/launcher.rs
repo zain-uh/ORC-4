@@ -15,9 +15,9 @@ use crate::screens::nav::{Cx, Nav, Screen};
 use crate::ui::DrawCx;
 use crate::ui::canvas::{Canvas, WIDTH, rgb, rgba};
 use crate::ui::icons;
-use crate::ui::text::Align;
+use crate::ui::text::{Align, fonts};
 use crate::ui::theme::{color, motion, space, typography};
-use crate::ui::widgets::status_bar;
+use crate::ui::widgets::status_bar::{self, Connection};
 
 use super::registry::{AppEntry, apps};
 
@@ -125,8 +125,9 @@ impl Screen for Launcher {
             .collect();
         order.sort_by(|a, b| b.1.abs().total_cmp(&a.1.abs()));
 
+        let offline = cx.status.connection == Connection::Offline;
         for (i, d) in order {
-            self.draw_panel(c, &self.apps[i], d);
+            self.draw_panel(c, &self.apps[i], d, offline);
         }
         self.draw_dots(c);
     }
@@ -134,7 +135,7 @@ impl Screen for Launcher {
 
 impl Launcher {
     /// Draws one panel `d` positions from the centre (fractional while sliding).
-    fn draw_panel(&self, c: &mut Canvas, app: &AppEntry, d: f32) {
+    fn draw_panel(&self, c: &mut Canvas, app: &AppEntry, d: f32, offline: bool) {
         let k = d.abs().min(1.0);
         let scale = 1.0 - (1.0 - NEIGHBOUR_SCALE) * k;
         let alpha = 1.0 - (1.0 - NEIGHBOUR_ALPHA) * k;
@@ -161,6 +162,32 @@ impl Launcher {
             ICON_SIZE * scale,
             rgba(color::TEXT, alpha),
         );
+        if offline && app.needs_network {
+            // Dark pill in the card's corner: the app opens, but explains.
+            let style = typography::CAPTION;
+            let text_w = fonts().measure(style, "Offline");
+            let pill_h = fonts().line_metrics(style).height + space::XS;
+            let (px, py) = (
+                centre_x - w / 2.0 + space::S * scale,
+                CARD_CENTRE_Y - h / 2.0 + space::S * scale,
+            );
+            c.fill_rounded_rect(
+                px,
+                py,
+                text_w + 2.0 * space::S,
+                pill_h,
+                pill_h / 2.0,
+                rgba(color::BACKGROUND, 0.75 * alpha),
+            );
+            c.text(
+                style,
+                "Offline",
+                px + space::S,
+                py + space::XS / 2.0,
+                Align::Left,
+                rgba(color::TEXT, alpha),
+            );
+        }
         c.text(
             typography::TITLE,
             app.name,
@@ -197,11 +224,18 @@ mod tests {
     use crate::ui::widgets::status_bar::Status;
 
     fn render(l: &Launcher) -> Canvas {
+        render_with(
+            l,
+            Status {
+                clock: Some((14, 32)),
+                ..Status::default()
+            },
+        )
+    }
+
+    fn render_with(l: &Launcher, status: Status) -> Canvas {
         let mut c = Canvas::new();
         let theme = Theme::default();
-        let status = Status {
-            clock: Some((14, 32)),
-        };
         l.draw(
             &mut c,
             &DrawCx {
@@ -210,6 +244,16 @@ mod tests {
             },
         );
         c
+    }
+
+    #[test]
+    fn snapshot_launcher_offline() {
+        let status = Status {
+            clock: Some((14, 32)),
+            connection: Connection::Offline,
+            ..Status::default()
+        };
+        assert_snapshot("launcher-offline", &render_with(&Launcher::new(), status));
     }
 
     #[test]

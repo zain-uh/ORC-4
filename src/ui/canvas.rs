@@ -60,6 +60,21 @@ impl Canvas {
         }
     }
 
+    /// Connected line segments with rounded ends and joins.
+    pub fn stroke_polyline(&mut self, points: &[(f32, f32)], width: f32, color: Color) {
+        let mut pb = PathBuilder::new();
+        for (i, &(x, y)) in points.iter().enumerate() {
+            if i == 0 {
+                pb.move_to(x, y);
+            } else {
+                pb.line_to(x, y);
+            }
+        }
+        if let Some(path) = pb.finish() {
+            self.stroke_path(&path, width, LineCap::Round, color);
+        }
+    }
+
     /// Straight line with rounded ends.
     pub fn stroke_line(&mut self, from: (f32, f32), to: (f32, f32), width: f32, color: Color) {
         let mut pb = PathBuilder::new();
