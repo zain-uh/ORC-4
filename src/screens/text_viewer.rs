@@ -1,16 +1,17 @@
-//! Paged text reader (text files, logs). One page per screen; ↑/↓ or ←/→
+//! Paged text reader (text files, logs, Wikipedia articles). One page per
+//! screen; ↑/↓ or ←/→
 //! turn pages. No scrolling animation: instant page turns are easier to
-//! follow on a small display and cost nothing.
+//! follow on a small display and cost nothing. Heading lines get a bar.
 
 use std::path::PathBuf;
 
 use crate::app::action::Action;
 use crate::services::storage::{self, MAX_TEXT_BYTES};
-use crate::services::{Reply, ServiceEvent, Ticket, UserError};
+use crate::services::{DocLine, Reply, ServiceEvent, Ticket, UserError};
 use crate::ui::DrawCx;
 use crate::ui::canvas::{Canvas, rgb};
 use crate::ui::text::{Align, TextStyle, fonts};
-use crate::ui::theme::{Theme, color, typography};
+use crate::ui::theme::{Theme, color, space, typography};
 use crate::ui::widgets::{message, status_bar};
 
 use super::nav::{Cx, Nav, Screen};
@@ -24,7 +25,9 @@ enum Load {
 pub struct TextViewer {
     title: String,
     style: TextStyle,
-    lines: Vec<String>,
+    lines: Vec<DocLine>,
+    /// Shown when loading fails ("Can't open file").
+    failure: &'static str,
     /// Requested page; clamped to the last page when used (so `usize::MAX`
     /// means "open at the end").
     page: usize,
@@ -49,12 +52,18 @@ impl TextViewer {
                     MAX_TEXT_BYTES / 1024
                 ));
             }
-            Ok(Reply::Lines(lines))
+            Ok(Reply::Doc(lines.into_iter().map(DocLine::plain).collect()))
         });
+        Self::loading(name, style, ticket, "Can't open file")
+    }
+
+    /// Shows the `Reply::Doc` lines that the job behind `ticket` produces.
+    pub fn loading(title: String, style: TextStyle, ticket: Ticket, failure: &'static str) -> Self {
         Self {
-            title: name,
+            title,
             style,
             lines: Vec::new(),
+            failure,
             page: 0,
             load: Load::Loading(ticket),
         }
@@ -70,7 +79,8 @@ impl TextViewer {
         Self {
             title: title.into(),
             style,
-            lines,
+            lines: lines.into_iter().map(DocLine::plain).collect(),
+            failure: "",
             page: if start_at_end { usize::MAX } else { 0 },
             load: Load::Ready,
         }
@@ -111,7 +121,7 @@ impl Screen for TextViewer {
             return Err(event);
         }
         match event.result {
-            Ok(Reply::Lines(lines)) => {
+            Ok(Reply::Doc(lines)) => {
                 self.lines = lines;
                 self.load = Load::Ready;
             }
@@ -133,14 +143,14 @@ impl Screen for TextViewer {
                 let lh = self.line_height();
                 let lines = self.lines.iter().skip(page * per_page).take(per_page);
                 for (i, line) in lines.enumerate() {
-                    c.text(
-                        self.style,
-                        line,
-                        left,
-                        top + i as f32 * lh,
-                        Align::Left,
-                        rgb(color::TEXT),
-                    );
+                    let y = top + i as f32 * lh;
+                    let mut x = left;
+                    if line.heading {
+                        // A bar, not colour: colour smears on composite video.
+                        c.fill_rect(left, y + lh * 0.15, 4.0, lh * 0.7, rgb(color::TEXT));
+                        x += space::M;
+                    }
+                    c.text(self.style, &line.text, x, y, Align::Left, rgb(color::TEXT));
                 }
                 format!("{} · {}/{}", self.title, page + 1, self.pages(t))
             }
@@ -149,7 +159,7 @@ impl Screen for TextViewer {
                 self.title.clone()
             }
             Load::Failed(e) => {
-                message::draw(c, t, "Can't open file", Some(e.message()));
+                message::draw(c, t, self.failure, Some(e.message()));
                 self.title.clone()
             }
         };
@@ -190,5 +200,47 @@ mod tests {
         let theme = Theme::default();
         let v = viewer(25, true);
         assert_eq!(v.current_page(&theme), v.pages(&theme) - 1);
+    }
+}
+
+#[cfg(test)]
+mod snapshot {
+    use super::*;
+    use crate::ui::snapshot::assert_snapshot;
+    use crate::ui::widgets::status_bar::Status;
+
+    #[test]
+    fn snapshot_reader_with_headings() {
+        let line = |text: &str, heading| DocLine {
+            text: text.into(),
+            heading,
+        };
+        let mut v = TextViewer::with_lines("Owl", typography::BODY, Vec::new(), false);
+        v.lines = vec![
+            line("Owls are birds from the order Strigiformes,", false),
+            line("which includes over 200 species of mostly", false),
+            line("solitary and nocturnal birds of prey.", false),
+            line("", false),
+            line("Anatomy", true),
+            line("", false),
+            line("Owls have large forward-facing eyes and", false),
+            line("ear-holes, a hawk-like beak and a flat face.", false),
+        ];
+        let mut c = Canvas::new();
+        let (theme, status) = (
+            Theme::default(),
+            Status {
+                clock: Some((14, 32)),
+                ..Status::default()
+            },
+        );
+        v.draw(
+            &mut c,
+            &DrawCx {
+                theme: &theme,
+                status: &status,
+            },
+        );
+        assert_snapshot("reader", &c);
     }
 }

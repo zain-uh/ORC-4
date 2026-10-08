@@ -7,6 +7,14 @@
 
 use super::UserError;
 
+/// Identifies ORC-4 to servers, with a contact URL (Wikimedia's API policy
+/// asks for one).
+pub const USER_AGENT: &str = concat!(
+    "ORC-4/",
+    env!("CARGO_PKG_VERSION"),
+    " (smart glasses; https://github.com/iNoExist/ORC-4)"
+);
+
 /// Downloads `url`, refusing bodies larger than `max_bytes`.
 pub fn get(url: &str, max_bytes: u64) -> Result<Vec<u8>, UserError> {
     imp::get(url, max_bytes)
@@ -28,7 +36,7 @@ mod imp {
             let config = Config::builder()
                 .timeout_connect(Some(Duration::from_secs(5)))
                 .timeout_global(Some(Duration::from_secs(15)))
-                .user_agent(concat!("ORC-4/", env!("CARGO_PKG_VERSION")))
+                .user_agent(super::USER_AGENT)
                 .build();
             Agent::new_with_config(config)
         })
@@ -65,6 +73,7 @@ mod imp {
             .args(["--silent", "--show-error", "--fail", "--location"])
             .args(["--connect-timeout", "5", "--max-time", "15"])
             .args(["--max-filesize", &max_bytes.to_string()])
+            .args(["--user-agent", super::USER_AGENT])
             .arg("--")
             .arg(url)
             .stdin(Stdio::null())
@@ -95,5 +104,31 @@ mod tests {
             get("http://127.0.0.1:9/x.jpg", 1024).unwrap_err(),
             UserError::Network
         );
+    }
+}
+
+/// Percent-encodes `s` for use in a URL path segment or query value.
+pub fn encode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod encode_tests {
+    use super::encode;
+
+    #[test]
+    fn encodes_everything_but_unreserved_characters() {
+        assert_eq!(encode("Rust (language)"), "Rust%20%28language%29");
+        assert_eq!(encode("a&b=c/d?"), "a%26b%3Dc%2Fd%3F");
+        assert_eq!(encode("Zoë"), "Zo%C3%AB");
+        assert_eq!(encode("safe-_.~"), "safe-_.~");
     }
 }

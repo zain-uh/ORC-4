@@ -28,6 +28,7 @@ pub struct Settings {
     pub input: InputSettings,
     pub phone: PhoneSettings,
     pub youtube: YoutubeSettings,
+    pub search: SearchSettings,
     pub player: PlayerSettings,
     pub network: NetworkSettings,
     pub simulator: SimulatorSettings,
@@ -43,6 +44,7 @@ impl Default for Settings {
             input: InputSettings::default(),
             phone: PhoneSettings::default(),
             youtube: YoutubeSettings::default(),
+            search: SearchSettings::default(),
             player: PlayerSettings::default(),
             network: NetworkSettings::default(),
             simulator: SimulatorSettings::default(),
@@ -144,6 +146,36 @@ impl Default for PlayerSettings {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+pub struct SearchSettings {
+    /// Wikipedia language edition ("en", "de", "fr"...).
+    pub language: String,
+    /// Recent searches, newest first.
+    pub recent: Vec<String>,
+}
+
+impl Default for SearchSettings {
+    fn default() -> Self {
+        Self {
+            language: "en".into(),
+            recent: Vec::new(),
+        }
+    }
+}
+
+/// How many recent searches each app keeps.
+pub const MAX_RECENT: usize = 8;
+
+/// Moves `query` to the front of a recent-search list, without duplicates
+/// (ignoring case).
+pub fn remember_query(recent: &mut Vec<String>, query: &str) {
+    let key = query.to_lowercase();
+    recent.retain(|q| q.to_lowercase() != key);
+    recent.insert(0, query.to_string());
+    recent.truncate(MAX_RECENT);
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct YoutubeSettings {
     /// The yt-dlp program: a name on PATH or a full path.
     pub ytdlp: String,
@@ -152,18 +184,6 @@ pub struct YoutubeSettings {
     pub thumbnails: String,
     /// Recent searches, newest first (cleared from the YouTube screen).
     pub recent: Vec<String>,
-}
-
-impl YoutubeSettings {
-    pub const MAX_RECENT: usize = 8;
-
-    /// Moves `query` to the front, without duplicates (ignoring case).
-    pub fn remember(&mut self, query: &str) {
-        let key = query.to_lowercase();
-        self.recent.retain(|q| q.to_lowercase() != key);
-        self.recent.insert(0, query.to_string());
-        self.recent.truncate(Self::MAX_RECENT);
-    }
 }
 
 impl Default for YoutubeSettings {

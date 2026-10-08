@@ -5,9 +5,10 @@ use crate::ui::theme::color;
 
 use super::files::Folder;
 use super::nav::{Cx, Screen};
-use super::placeholder::Placeholder;
+use super::query_home::QueryHome;
+use super::search::WikiResults;
 use super::settings::SettingsHome;
-use super::youtube::YoutubeHome;
+use super::youtube::Results;
 
 pub struct AppEntry {
     pub name: &'static str,
@@ -26,14 +27,30 @@ pub fn apps() -> Vec<AppEntry> {
             icon: Icon::Play,
             accent: color::YOUTUBE,
             needs_network: true,
-            open: |_, cx| Box::new(YoutubeHome::new(cx)),
+            open: |_, cx| {
+                Box::new(QueryHome::new(
+                    "YouTube",
+                    "Search YouTube",
+                    |s| &mut s.youtube.recent,
+                    |q, cx| Box::new(Results::new(q, cx)),
+                    cx,
+                ))
+            },
         },
         AppEntry {
             name: "Search",
             icon: Icon::Search,
             accent: color::SEARCH,
             needs_network: true,
-            open: |e, _| Box::new(Placeholder::new(e, "Web search and reader arrive in M9.")),
+            open: |_, cx| {
+                Box::new(QueryHome::new(
+                    "Search",
+                    "Search Wikipedia",
+                    |s| &mut s.search.recent,
+                    |q, cx| Box::new(WikiResults::new(q, cx)),
+                    cx,
+                ))
+            },
         },
         AppEntry {
             name: "Files",

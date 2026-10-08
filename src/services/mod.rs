@@ -15,6 +15,7 @@ pub mod network;
 pub mod player;
 pub mod storage;
 pub mod system;
+pub mod wiki;
 pub mod youtube;
 
 use std::cell::Cell;
@@ -37,12 +38,30 @@ pub struct Ticket(u64);
 #[derive(Debug)]
 pub enum Reply {
     Dir(Vec<DirEntry>),
-    Lines(Vec<String>),
+    /// Text laid out for the reader, one entry per screen line.
+    Doc(Vec<DocLine>),
+    Hits(Vec<wiki::Hit>),
     Image(Image),
     Videos(Vec<Video>),
     Network(NetInfo),
     Networks(Vec<WifiNetwork>),
     Done,
+}
+
+/// One laid-out line of a document.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocLine {
+    pub text: String,
+    pub heading: bool,
+}
+
+impl DocLine {
+    pub fn plain(text: String) -> Self {
+        Self {
+            text,
+            heading: false,
+        }
+    }
 }
 
 /// Failure categories with display-ready wording. Details go to the log.
@@ -181,11 +200,11 @@ mod tests {
     fn jobs_run_in_order_and_report_their_ticket() {
         let (tx, rx) = mpsc::channel();
         let services = Services::start(tx);
-        let a = services.run(|| Ok(Reply::Lines(vec!["a".into()])));
+        let a = services.run(|| Ok(Reply::Doc(vec![DocLine::plain("a".into())])));
         let b = services.run(|| Err(UserError::NotFound));
         let first = next_service_event(&rx);
         assert_eq!(first.ticket, a);
-        assert!(matches!(first.result, Ok(Reply::Lines(_))));
+        assert!(matches!(first.result, Ok(Reply::Doc(_))));
         let second = next_service_event(&rx);
         assert_eq!(second.ticket, b);
         assert_eq!(second.result.unwrap_err(), UserError::NotFound);

@@ -58,6 +58,15 @@ In the simulator mpv opens its own window; on the glasses it takes over the
 display. Controls: Enter pause, ←/→ seek 10 s, ↑/↓ volume, Tab audio only,
 Esc stop.
 
+## Search
+
+The Search app searches Wikipedia through Wikimedia's free public API (no
+account or key) and opens articles in a paged reader. Change the language
+edition with `[search] language = "de"`. Articles end with the CC BY-SA credit.
+Google's search API is closed to new users and shuts down in January 2027, so
+web search would need a paid provider (e.g. Brave) or a self-hosted SearXNG;
+it can be added behind the same screens later.
+
 ## Network
 
 The status bar shows Wi-Fi signal, or "Offline" / "Sign-in needed". Internet
